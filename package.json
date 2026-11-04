@@ -1,0 +1,12 @@
+{
+  "name": "farm-dayori-demo",
+  "version": "0.7.0",
+  "private": true,
+  "description": "農園販売の操作体験デモとブラウザテスト",
+  "scripts": {
+    "test": "node test.cjs && node test-v07.cjs"
+  },
+  "devDependencies": {
+    "playwright": "1.62.1"
+  }
+}
