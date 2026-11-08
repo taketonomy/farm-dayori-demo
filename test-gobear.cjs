@@ -300,7 +300,8 @@ const HTML = fs.readFileSync(__dirname + '/go-bear.html', 'utf8');
     assert.equal(await page.locator('[data-journey-state="f1"]').innerText(), '相談したい');
     // 生産者の視点：来たい人数と受け入れだけ
     await page.selectOption('#roleSelect', 'producer');
-    assert((await page.locator('[data-producer-seg="d1|out|里山駅|f1|a"]').innerText()).includes('乗りたい 5人・空席 3（2席不足）'));
+    // 生産者の画面には相乗りの情報を出さない（相乗りは援農者どうしの機能）
+    assert.equal(await page.locator('[data-producer-seg]').count(), 0);
     await page.locator('[data-producer-home="f1"] [data-home-choice="延期"]').click();
     // ④ 援農者に戻ると、受け入れは延期・移動の合意は記録のまま（別々）
     await page.selectOption('#roleSelect', 'helper');
@@ -336,8 +337,7 @@ const HTML = fs.readFileSync(__dirname + '/go-bear.html', 'utf8');
     // 生産者：こもれび農園を延期 → 行き・帰り・到着予定・再確認の表示
     await page.selectOption('#roleSelect', 'producer');
     await page.selectOption('#producerFarm', 'f1');
-    assert.equal(await page.locator('[data-producer-leg="ret"] li').count(), 1);
-    assert((await page.locator('[data-arrival="P-01"]').innerText()).includes('行き 9:00発'));
+    assert((await page.locator('[data-arrival="P-01"]').innerText()).includes('未申告'));
     assert((await page.locator('[data-arrival="P-03"]').innerText()).includes('未申告'));
     await page.locator('[data-producer-home="f1"] [data-home-choice="延期"]').click();
     assert.equal(await page.locator('[data-producer-home="f1"] [data-recheck]').count(), 1);
@@ -355,7 +355,7 @@ const HTML = fs.readFileSync(__dirname + '/go-bear.html', 'utf8');
     await page.close();
   });
 
-  await test('誰がいつ来て、いつ帰るか：P-01 の申告が生産者の表に反映し、未申告・相乗りなし・目安より後・変更を区別する', async () => {
+  await test('誰がいつ来て、いつ帰るか：P-01 の申告が生産者の表に反映し、未申告・目安より後・変更を区別する（滞在時間のみ）', async () => {
     const page = await fresh({width: 1200, height: 1000}, {openDetails: false});
     // 援農者 P-01：こもれび農園に 10:00 着・14:00 発・自転車で伝える
     assert.equal(await page.locator('[data-attend-mine]').innerText(), 'まだ伝えていません');
@@ -368,9 +368,11 @@ const HTML = fs.readFileSync(__dirname + '/go-bear.html', 'utf8');
     await page.selectOption('#producerFarm', 'f1');
     const row = t => page.locator(`[data-arrival="${t}"]`).innerText();
     const p01 = await row('P-01');
-    assert(p01.includes('10:00') && p01.includes('14:00') && p01.includes('自転車') && p01.includes('申告済み'));
+    assert(p01.includes('10:00') && p01.includes('14:00') && p01.includes('申告済み'));
+    // 生産者には滞在時間だけを見せ、来る方法や相乗りの便は出さない
+    assert(!p01.includes('自転車') && !p01.includes('発'));
     assert((await row('P-03')).includes('未申告'));
-    assert((await row('P-09')).includes('自転車') && (await row('P-09')).includes('行き なし'));
+    assert((await row('P-09')).includes('10:00') && (await row('P-09')).includes('14:00'));
     assert((await row('P-08')).includes('目安より後（受け付け済み）'));
     // 変更を伝えると「変更あり」
     await page.selectOption('#roleSelect', 'helper');
@@ -378,6 +380,20 @@ const HTML = fs.readFileSync(__dirname + '/go-bear.html', 'utf8');
     await page.click('[data-attend-form="f1"] button[type="submit"]');
     await page.selectOption('#roleSelect', 'producer');
     assert((await row('P-01')).includes('変更あり'));
+    await page.close();
+  });
+
+  await test('援農者は2種類：相乗りする人（P-01）の合意記録が、運転する人（D-01）の画面に表示だけされる', async () => {
+    const page = await fresh({width: 1200, height: 1000}, {openDetails: false});
+    assert((await page.locator('#roleSelect option:checked').innerText()).includes('車に相乗りする人'));
+    await page.locator('[data-my-seg="d1|out|里山駅|f1|a"] [data-agree-offer="o01"]').click();
+    await page.selectOption('#roleSelect', 'driver');
+    assert((await page.locator('#roleSelect option:checked').innerText()).includes('車を運転する人'));
+    assert((await page.locator('[data-driver-note]').innerText()).includes('承認する機能はありません'));
+    assert.equal(await page.locator('[data-driver-seg]').count(), 2);
+    assert((await page.locator('[data-driver-agreed="d1|out|里山駅|f1|a"]').innerText()).includes('P-01（乗る人の側の記録）'));
+    assert.equal(await page.locator('#journey button, #journey input, #journey select').count(), 0);
+    assert.equal(await page.locator('[data-geo-mine]').count(), 0);
     await page.close();
   });
 

@@ -138,7 +138,8 @@ footer{font-size:13px;color:var(--muted);margin:20px 0 40px}
     <div class="role-box">
       <label for="roleSelect">デモの視点を切り替える（認証ではありません）</label>
       <select id="roleSelect">
-        <option value="helper">援農者：P-01（くまの子援農クラブ・架空）</option>
+        <option value="helper">援農者（車に相乗りする人）：P-01（架空）</option>
+        <option value="driver">援農者（車を運転する人）：D-01（架空）</option>
         <option value="producer">生産者（受け入れる農園）</option>
       </select>
       <label for="daySelect" class="day-label">活動日</label><select id="daySelect"></select>
@@ -429,8 +430,11 @@ function say(msg) {
 const isProducer = () => view.role === 'producer';
 /* 援農者の視点は、架空の1人の利用者として操作する */
 const PERSONA = {person: 'P-01', group: 's1'};
-const isMine = r => !isProducer() && r.person === PERSONA.person;
-const hasMine = seg => !isProducer() && seg.riders.some(r => r.person === PERSONA.person);
+const isHelper = () => view.role === 'helper';
+const isDriver = () => view.role === 'driver';
+const DRIVER = 'D-01';
+const isMine = r => isHelper() && r.person === PERSONA.person;
+const hasMine = seg => isHelper() && seg.riders.some(r => r.person === PERSONA.person);
 const groupName = id => SUPPORT_GROUPS.find(g => g.id === id).name;
 const producerGroupOf = farmId => PRODUCER_GROUPS.find(g => g.id === FARMS[farmId].group);
 const dayLabel = id => DAYS.find(d => d.id === id).label;
@@ -533,7 +537,7 @@ function renderMap() {
 
   // 援農グループ
   for (const sg of SUPPORT_GROUPS) {
-    const mine = !isProducer() && sg.id === PERSONA.group;
+    const mine = isHelper() && sg.id === PERSONA.group;
     svg.append(s('rect', {x: SG_X, y: sg.y, width: SG_W, height: SG_H, rx: 28, fill: '#fff8e8', stroke: '#c49a3a', 'stroke-width': mine ? 3.5 : 1.5, 'data-my-group': mine ? 'true' : null}));
     svg.append(s('text', {x: SG_X + 14, y: sg.y + 22, 'font-size': 11, fill: '#5f6f63', 'font-weight': mine ? 700 : 400}, mine ? '援農グループ（あなた）' : '援農グループ'));
     svg.append(s('text', {x: SG_X + 14, y: sg.y + 42, 'font-size': 13.5, 'font-weight': 700, fill: '#223b30'}, sg.name));
@@ -604,7 +608,7 @@ function renderGeo() {
   svg.append(s('circle', {cx: hub.x, cy: hub.y, r: 40, fill: '#fff8e8', stroke: '#c49a3a', 'stroke-width': 3}));
   svg.append(s('text', {x: hub.x, y: hub.y - 4, 'text-anchor': 'middle', 'font-size': 14, 'font-weight': 700, fill: '#223b30', 'data-geo-hub': 'true'}, HUB));
   svg.append(s('text', {x: hub.x, y: hub.y + 14, 'text-anchor': 'middle', 'font-size': 11, fill: '#5f6f63'}, '集合場所'));
-  if (!isProducer() && segs.some(hasMine))
+  if (isHelper() && segs.some(hasMine))
     svg.append(s('text', {x: hub.x, y: hub.y + 62, 'text-anchor': 'middle', 'font-size': 12, 'font-weight': 700, fill: '#b35c00', 'data-geo-mine': 'true'}, `あなた（${PERSONA.person}）はここに集合`));
 }
 
@@ -698,8 +702,8 @@ function renderAccept() {
             }, `${FARMS[fid].name}の生産者`, {producerFarm: fid})
           : h('span', {class: 'readonly-state'}, '生産者が選びます')),
       Object.entries(a.groups).map(([gid, st]) => h('div', {class: 'choice-row'},
-        h('span', {class: 'label'}, (!isProducer() && gid === PERSONA.group) ? `あなたのグループ（${groupName(gid)}）：` : `${groupName(gid)}の選択：`, h('br'), h('strong', {'data-participant-state': `${fid}-${gid}`}, st)),
-        (isProducer() || gid !== PERSONA.group)
+        h('span', {class: 'label'}, (isHelper() && gid === PERSONA.group) ? `あなたのグループ（${groupName(gid)}）：` : `${groupName(gid)}の選択：`, h('br'), h('strong', {'data-participant-state': `${fid}-${gid}`}, st)),
+        (!isHelper() || gid !== PERSONA.group)
           ? h('span', {class: 'readonly-state'}, isProducer() ? '参加する側が選びます' : 'そのグループが選びます')
           : choiceButtons(PARTICIPANT_CHOICES, st, opt => {
               a.groups[gid] = opt; renderAll(); say(`${groupName(gid)}：参加の選択を「${opt}」にしました（画面内のみ）`);
@@ -838,7 +842,7 @@ function renderRides() {
   const mineCount = visible.filter(hasMine).length;
   $('rideSummary').textContent =
     `${visible.length}区間（不足${count('short')}・余裕${count('spare')}・一致${count('even')}）。区間どうしで相殺しません。` +
-    (isProducer() ? '' : (mineCount ? `あなたの便：${mineCount}件` : 'あなたの申し込みはありません'));
+    (!isHelper() ? '' : (mineCount ? `あなたの便：${mineCount}件` : 'あなたの申し込みはありません'));
 }
 
 /* ------------------------------------------------------------------
@@ -903,6 +907,7 @@ function renderJourney() {
   const box = $('journey');
   box.replaceChildren();
   if (isProducer()) { renderProducerHome(box); return; }
+  if (isDriver()) { renderDriverHome(box); return; }
   const dayAccept = accept[view.day] || {};
   const farms = Object.keys(dayAccept);
   const fid = journeyFarm();
@@ -1004,8 +1009,6 @@ function arrivalRows(fid) {
   return [...people.values()].sort((a, b) => a.person.localeCompare(b.person));
 }
 function arrivalState(row, notice) {
-  const rideChanged = ['out', 'ret'].map(k => row[k]).filter(x => x && (x.status === '延期' || x.status === '見送り'));
-  if (rideChanged.length) return `相乗りに変更あり（${rideChanged.map(x => x.status).join('・')}）`;
   if (!row.decl) return '未申告';
   if (row.decl.changed) return '変更あり';
   if (/^\d\d\/\d\d/.test(row.decl.at) && row.decl.at.slice(0, 5) > notice) return '目安より後（受け付け済み）';
@@ -1059,27 +1062,36 @@ function renderProducerHome(box) {
     (a.producer === '延期' || a.producer === '見送り') ? h('p', {class: 'warn', 'data-recheck': 'true'}, RECHECK) : null,
     h('div', {}, h('strong', {}, '参加の選択（グループ）：'), Object.entries(a.groups).map(([g, st]) => `${groupName(g)}「${st}」`).join('／') || 'まだありません')));
 
-  // ③ 相乗り（行き・帰り）
-  const segs = computeSegments().filter(x => x.farm === fid);
-  box.append(stepTitle(3, '相乗りの希望（行き・帰り、便ごと）'));
-  box.append(h('p', {class: 'muted'}, '相乗りを希望する人数です。畑に来る人全員ではありません。'));
-  for (const [leg, label] of [['out', '行き'], ['ret', '帰り']]) {
-    const list = segs.filter(x => x.leg === leg);
-    box.append(h('div', {'data-producer-leg': leg}, h('strong', {}, label), list.length
-      ? h('ul', {}, list.map(x => h('li', {'data-producer-seg': x.key}, `${SLOT[x.slot]}発：乗りたい ${x.want.total}人・空席 ${x.seatsTotal}（${x.verdict}）`)))
-      : h('p', {class: 'muted'}, 'なし')));
-  }
-
-  // ④ 来る時間・帰る時間
-  box.append(stepTitle(4, '誰がいつ来て、いつ帰るか'));
-  box.append(h('p', {class: 'muted'}, `連絡の目安：${day.notice}（活動日の2日前）まで。遅れた連絡も自動では断りません。表示しているのは、この画面に申告された内容と相乗りの申し込みだけです（架空データ・通知や保存はなし）。`));
+  // ③ 誰がいつ来て、いつ帰るか（畑に滞在する時間）
+  box.append(stepTitle(3, '誰がいつ来て、いつ帰るか'));
+  box.append(h('p', {class: 'muted'}, `連絡の目安：${day.notice}（活動日の2日前）まで。遅れた連絡も自動では断りません。表示しているのは、この画面に申告された内容だけです（架空データ・通知や保存はなし）。`));
   const rows = arrivalRows(fid);
   box.append(rows.length ? h('table', {class: 'orders arrivals', 'data-arrivals': fid},
-    h('thead', {}, h('tr', {}, h('th', {}, '仮名ID'), h('th', {}, '畑に着く'), h('th', {}, '畑を出る'), h('th', {}, '来る方法'), h('th', {}, '駅を出る便（参考）'), h('th', {}, '状態'))),
+    h('thead', {}, h('tr', {}, h('th', {}, '仮名ID'), h('th', {}, '畑に着く'), h('th', {}, '畑を出る'), h('th', {}, '状態'))),
     h('tbody', {}, rows.map(r => h('tr', {'data-arrival': r.person},
-      h('td', {}, r.person), h('td', {}, r.decl ? r.decl.arrive : '—'), h('td', {}, r.decl ? r.decl.leave : '—'), h('td', {}, r.decl ? r.decl.mode : '—'),
-      h('td', {}, `行き ${r.out ? r.out.slot.split('〜')[0] + '発' : 'なし'}／帰り ${r.ret ? r.ret.slot.split('〜')[0] + '発' : 'なし'}`), h('td', {}, arrivalState(r, day.notice))))))
+      h('td', {}, r.person), h('td', {}, r.decl ? r.decl.arrive : '—'), h('td', {}, r.decl ? r.decl.leave : '—'), h('td', {}, arrivalState(r, day.notice))))))
     : h('p', {class: 'muted'}, '相乗りの申し込みはありません'));
+}
+
+function renderDriverHome(box) {
+  const segs = computeSegments().filter(x => x.offers.some(o => o.driver === DRIVER));
+  box.append(stepTitle(1, `あなた（${DRIVER}）の車の便`));
+  box.append(h('p', {class: 'warn', 'data-driver-note': 'true'}, '表示だけです。運転する人がアプリで同乗を承認する機能はありません。同乗の合意は、乗る人の側の記録です。確認は顔を合わせて行います。'));
+  if (!segs.length) { box.append(h('p', {class: 'muted'}, 'この日、あなたの車の便はありません')); return; }
+  const scale = Math.max(1, ...segs.map(x => Math.max(x.want.total, x.seatsTotal)));
+  for (const seg of segs) {
+    const o = seg.offers.find(x => x.driver === DRIVER);
+    const dup = seg.offerDup.has(o.id);
+    const withMe = seg.riders.filter(r => r.offer === o.id && r.status === '合意済み').map(r => r.person);
+    box.append(h('article', {class: 'seg', 'data-driver-seg': seg.key},
+      h('header', {},
+        h('div', {}, h('div', {class: 'route'}, `${seg.leg === 'out' ? '行き' : '帰り'}：${routeText(seg)}`), h('small', {}, `${dayLabel(seg.day)}　${SLOT[seg.slot]}発`)),
+        h('div', {class: `verdict ${seg.kind}`}, seg.verdict)),
+      renderBars(seg, scale),
+      h('div', {class: 'breakdown'}, `あなたの車：定員${o.capacity} − 運転する人1 − すでに乗る人${o.existing} ＝ 空席${freeSeats(o)}`, dup ? '（同じ向きの別の便に先に申告しているため、この便では数えません）' : ''),
+      h('div', {'data-driver-agreed': seg.key}, h('strong', {}, 'あなたの車との合意を記録した人：'), withMe.length ? withMe.join('、') + '（乗る人の側の記録）' : 'まだいません'),
+      h('div', {}, h('strong', {}, 'この便に乗りたい人：'), seg.counted.map(r => `${r.person}（${r.status}）`).join('、') || 'なし')));
+  }
 }
 
 function renderAll() {
