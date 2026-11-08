@@ -98,6 +98,8 @@ details.entries summary{cursor:pointer;color:var(--accent);font-weight:600}
 .mine-badge{margin-left:6px;color:#b35c00;font-weight:700}
 .mine-line{margin:4px 0 0;font-size:13px;font-weight:700;color:#b35c00}
 .geo-farm{cursor:pointer}
+.geo-wrap svg{min-width:0}
+.geo-note{margin:0 0 6px;font-size:13px;font-weight:700;color:var(--warn)}
 .hidden{display:none!important}
 footer{font-size:13px;color:var(--muted);margin:20px 0 40px}
 </style>
@@ -134,7 +136,8 @@ footer{font-size:13px;color:var(--muted);margin:20px 0 40px}
 
   <section class="card" aria-labelledby="geoTitle">
     <h2 id="geoTitle">駅から畑へ（概念図）</h2>
-    <div class="map-wrap"><svg id="geoMap" viewBox="0 0 640 250" role="group" aria-label="集合場所の駅と農園の位置関係の概念図。農園を選ぶと需給を絞り込みます"></svg></div>
+    <p class="geo-note" data-geo-note="true">概念図：農園の位置・方角・距離・経路・所要時間は未確認（仮の配置）</p>
+    <div class="map-wrap geo-wrap"><svg id="geoMap" viewBox="0 30 640 220" role="group" aria-label="集合場所の駅と農園の位置関係の概念図。農園を選ぶと需給を絞り込みます"></svg></div>
   </section>
 
   <section class="card" aria-labelledby="mapTitle">
@@ -524,8 +527,6 @@ function renderGeo() {
   const svg = $('geoMap');
   svg.replaceChildren();
   svg.append(s('title', {}, '駅と農園の位置関係の概念図'));
-  svg.append(s('text', {x: 12, y: 22, 'font-size': 12.5, fill: '#9b3d1c', 'font-weight': 700, 'data-geo-note': 'true'},
-    '概念図：農園の位置・方角・距離・経路・所要時間は未確認（仮の配置）'));
   const segs = computeSegments();
   const hub = GEO.hub;
   for (const fid of Object.keys(FARMS)) {
