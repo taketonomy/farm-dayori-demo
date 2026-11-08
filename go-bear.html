@@ -100,6 +100,19 @@ details.entries summary{cursor:pointer;color:var(--accent);font-weight:600}
 .geo-farm{cursor:pointer}
 .geo-wrap svg{min-width:0}
 .geo-note{margin:0 0 6px;font-size:13px;font-weight:700;color:var(--warn)}
+.coord{margin:14px 0}
+.coord > summary{cursor:pointer;font-weight:700;color:var(--accent);padding:10px 4px}
+.day-label{margin-top:8px}
+.journey h2{font-size:17px;margin:14px 0 6px;display:flex;gap:8px;align-items:center}
+.journey h2:first-child{margin-top:0}
+.step-no{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--accent);color:#fff;font-size:14px}
+.farm-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.farm-card{text-align:left;padding:10px 12px;border-radius:12px;background:#fff;display:grid;gap:4px}
+.farm-card[aria-pressed="true"]{background:#eef3e9;color:inherit;border:2px solid var(--accent)}
+.farm-card .fname{font-weight:700;font-size:16px}
+.farm-card .call{font-size:14px}
+.my-ride{border:2px solid #e6c48a}
+.status-lines{display:grid;gap:4px;font-size:15px}
 .hidden{display:none!important}
 footer{font-size:13px;color:var(--muted);margin:20px 0 40px}
 </style>
@@ -116,14 +129,19 @@ footer{font-size:13px;color:var(--muted);margin:20px 0 40px}
         <option value="helper">援農者：P-01（くまの子援農クラブ・架空）</option>
         <option value="producer">生産者（受け入れる農園）</option>
       </select>
+      <label for="daySelect" class="day-label">活動日</label><select id="daySelect"></select>
       <p id="roleHint" class="role-hint" aria-live="polite"></p>
     </div>
   </header>
 
+  <section id="journey" class="card journey" aria-label="あなたの手順"></section>
+
+  <details id="coordDetails" class="coord">
+  <summary>調整のための詳細（関係図・すべての便・受け入れの一覧）</summary>
+
   <section class="card" aria-labelledby="ctlTitle">
-    <h2 id="ctlTitle">表示する活動日と農園</h2>
+    <h2 id="ctlTitle">農園と往復で絞り込む</h2>
     <div class="controls">
-      <div><label for="daySelect">活動日</label><select id="daySelect"></select></div>
       <div><label for="farmSelect">農園で絞り込む（関係図からも選べます）</label><select id="farmSelect"></select></div>
       <div><label for="legSelect">往路・復路</label>
         <select id="legSelect">
@@ -132,12 +150,6 @@ footer{font-size:13px;color:var(--muted);margin:20px 0 40px}
           <option value="ret">復路だけ（農園 → 駅・バス停）</option>
         </select></div>
     </div>
-  </section>
-
-  <section class="card" aria-labelledby="geoTitle">
-    <h2 id="geoTitle">駅から畑へ（概念図）</h2>
-    <p class="geo-note" data-geo-note="true">概念図：農園の位置・方角・距離・経路・所要時間は未確認（仮の配置）</p>
-    <div class="map-wrap geo-wrap"><svg id="geoMap" viewBox="0 30 640 220" role="group" aria-label="集合場所の駅と農園の位置関係の概念図。農園を選ぶと需給を絞り込みます"></svg></div>
   </section>
 
   <section class="card" aria-labelledby="mapTitle">
@@ -190,6 +202,8 @@ footer{font-size:13px;color:var(--muted);margin:20px 0 40px}
       <div class="segments" id="segRet"></div>
     </div>
   </section>
+
+  </details>
 
   <section class="card">
     <details>
@@ -275,12 +289,12 @@ const PRODUCER_CHOICES = ['相談中', '受け入れ合意', '延期', '見送�
 const PARTICIPANT_CHOICES = ['参加希望', '相談したい', '延期', '見送り'];
 const ACCEPT_INIT = {
   d1: {
-    f1: {producer: '相談中', note: '5人以上を一度に迎えるのは2回目。人数と作業内容を相談中', groups: {s1: '参加希望', s3: '相談したい'}},
-    f2: {producer: '受け入れ合意', note: '玉ねぎの定植。4人まで', groups: {s2: '参加希望', s1: '相談したい'}},
+    f1: {producer: '相談中', note: '5人以上を一度に迎えるのは2回目。人数と作業内容を相談中', call: '今週はにんじんの間引き。人手があると助かります', groups: {s1: '参加希望', s3: '相談したい'}},
+    f2: {producer: '受け入れ合意', note: '玉ねぎの定植。4人まで', call: '玉ねぎの定植。4人まで来てもらえると助かります', groups: {s2: '参加希望', s1: '相談したい'}},
   },
   d2: {
-    f1: {producer: '相談中', note: '初回の顔合わせを兼ねる', groups: {s3: '相談したい'}},
-    f2: {producer: '受け入れ合意', note: '草取り。天候により延期あり', groups: {s2: '参加希望'}},
+    f1: {producer: '相談中', note: '初回の顔合わせを兼ねる', call: '初めての方との顔合わせを兼ねて、草取りをします', groups: {s3: '相談したい'}},
+    f2: {producer: '受け入れ合意', note: '草取り。天候により延期あり', call: '草取り。雨なら延期します', groups: {s2: '参加希望'}},
   },
 };
 
@@ -525,6 +539,7 @@ function renderMap() {
 
 function renderGeo() {
   const svg = $('geoMap');
+  if (!svg) return;
   svg.replaceChildren();
   svg.append(s('title', {}, '駅と農園の位置関係の概念図'));
   const segs = computeSegments();
@@ -829,10 +844,115 @@ const ROLE_HINT = {
   producer: '生産者の視点：受け入れを選べます',
 };
 
+/* ------------------------------------------------------------------
+ * あなたの手順（援農者 P-01）／この日の受け入れ（生産者）
+ * ------------------------------------------------------------------ */
+function journeyFarm() {
+  const farms = Object.keys(accept[view.day] || {});
+  if (view.farm && farms.includes(view.farm)) return view.farm;
+  const mine = computeSegments().find(hasMine);
+  return mine ? mine.farm : (farms[0] || '');
+}
+function stepTitle(n, text) { return h('h2', {}, h('span', {class: 'step-no'}, String(n)), text); }
+function acceptBadge(a) {
+  if (!a) return h('span', {class: 'pending'}, 'この日の予定なし');
+  return a.producer === '受け入れ合意' ? h('span', {class: 'badge', style: 'color:var(--ok)'}, '受け入れ合意')
+    : h('span', {class: 'pending'}, `受け入れ：${a.producer}`);
+}
+
+function renderJourney() {
+  const box = $('journey');
+  box.replaceChildren();
+  if (isProducer()) { renderProducerHome(box); return; }
+  const dayAccept = accept[view.day] || {};
+  const farms = Object.keys(dayAccept);
+  const fid = journeyFarm();
+  const segs = computeSegments();
+
+  // ① 畑を選ぶ
+  box.append(stepTitle(1, '畑を選ぶ'));
+  if (!farms.length) { box.append(h('p', {class: 'muted'}, 'この日の活動予定はありません')); return; }
+  box.append(h('div', {class: 'farm-cards'}, farms.map(f => {
+    const a = dayAccept[f];
+    const rel = RELATIONS.find(r => r.group === PERSONA.group && r.farm === f);
+    return h('button', {type: 'button', class: 'farm-card', 'aria-pressed': String(f === fid), 'data-journey-farm': f, onclick: () => selectFarm(f)},
+      h('span', {class: 'fname'}, FARMS[f].name),
+      h('span', {class: 'call'}, `「${a.call}」`),
+      h('span', {}, acceptBadge(a), '　', h('small', {}, rel ? `あなたのグループ：${REL_STATUS[rel.status].label}` : 'あなたのグループ：まだ関係なし')));
+  })));
+
+  // ② 行き方
+  box.append(stepTitle(2, `${HUB}から${FARMS[fid].name}へ`));
+  box.append(h('p', {class: 'geo-note', 'data-geo-note': 'true'}, '概念図：位置・方角・距離・経路・所要時間は未確認（仮の配置）'));
+  const wrap = h('div', {class: 'map-wrap geo-wrap'});
+  wrap.append(s('svg', {id: 'geoMap', viewBox: '0 30 640 220', role: 'group', 'aria-label': '集合場所の駅と農園の位置関係の概念図'}));
+  box.append(wrap);
+  const mine = segs.filter(x => x.farm === fid && hasMine(x));
+  if (!mine.length) {
+    box.append(h('p', {class: 'muted', 'data-no-mine': 'true'}, `${FARMS[fid].name}への便には、まだ申し込んでいません（このデモでは新しい申し込みはできません）`));
+  } else {
+    const scale = Math.max(1, ...mine.map(x => Math.max(x.want.total, x.seatsTotal)));
+    for (const seg of mine) {
+      const r = seg.riders.find(x => x.person === PERSONA.person);
+      box.append(h('article', {class: 'seg my-ride', 'data-my-seg': seg.key},
+        h('header', {},
+          h('div', {}, h('div', {class: 'route'}, `${seg.leg === 'out' ? '行き' : '帰り'}：${routeText(seg)}`), h('small', {}, `${SLOT[seg.slot]}発`)),
+          h('div', {class: `verdict ${seg.kind}`}, seg.verdict)),
+        renderBars(seg, scale),
+        riderEntry(r, seg)));
+    }
+  }
+
+  // ③ 伝える
+  const a = dayAccept[fid];
+  box.append(stepTitle(3, '農園に伝える'));
+  if (a && a.groups[PERSONA.group] !== undefined) {
+    const st = a.groups[PERSONA.group];
+    box.append(h('div', {class: 'choice-row'},
+      h('span', {class: 'label'}, `${groupName(PERSONA.group)}として：`, h('br'), h('strong', {'data-journey-state': fid}, st)),
+      PARTICIPANT_CHOICES.map(opt => h('button', {type: 'button', 'aria-pressed': String(st === opt), 'data-journey-choice': opt,
+        onclick: () => { a.groups[PERSONA.group] = opt; renderAll(); say(`「${opt}」を記録しました（画面内のみ・送信なし）`); }}, opt))));
+  } else {
+    box.append(h('p', {class: 'muted'}, 'この日、あなたのグループの参加の記録はありません（このデモでは新しい申し込みはできません）'));
+  }
+
+  // ④ 当日まで
+  const agreed = mine.filter(x => x.riders.some(r => r.person === PERSONA.person && r.status === '合意済み')).length;
+  box.append(stepTitle(4, '当日まで'));
+  box.append(h('div', {class: 'status-lines', 'data-journey-status': fid},
+    h('div', {}, h('strong', {}, '農園の受け入れ：'), a ? a.producer : '予定なし', ' ', a && a.producer !== '受け入れ合意' ? h('span', {class: 'pending'}, '未決定') : null),
+    h('div', {}, h('strong', {}, '移動の合意：'), mine.length ? `${agreed} / ${mine.length} 便を記録（あなたの側の記録）` : 'なし'),
+    h('small', {class: 'muted'}, '受け入れと移動の合意は別々です。延期になっても自動の通知・再調整はありません。')));
+}
+
+function renderProducerHome(box) {
+  const dayAccept = accept[view.day] || {};
+  const farms = Object.keys(dayAccept);
+  const segs = computeSegments();
+  box.append(stepTitle(1, `${dayLabel(view.day)}の受け入れ`));
+  if (!farms.length) { box.append(h('p', {class: 'muted'}, 'この日の活動予定はありません')); return; }
+  for (const f of farms) {
+    const a = dayAccept[f];
+    const outs = segs.filter(x => x.farm === f && x.leg === 'out');
+    box.append(h('div', {class: 'accept-item', 'data-producer-home': f},
+      h('h3', {}, FARMS[f].name),
+      h('p', {class: 'call'}, `たより：「${a.call}」`),
+      h('div', {}, h('strong', {}, '来たい人（行きの相乗り・便ごと）')),
+      outs.length ? h('ul', {}, outs.map(x => h('li', {'data-producer-seg': x.key}, `${SLOT[x.slot]}発：乗りたい ${x.want.total}人・空席 ${x.seatsTotal}（${x.verdict}）`)))
+        : h('p', {class: 'muted'}, '相乗りの申し込みはありません'),
+      h('div', {}, h('strong', {}, '参加の選択：'), Object.entries(a.groups).map(([g, st]) => `${groupName(g)}「${st}」`).join('／')),
+      h('div', {class: 'choice-row'},
+        h('span', {class: 'label'}, '受け入れ：', h('br'), h('strong', {'data-producer-home-state': f}, a.producer)),
+        PRODUCER_CHOICES.map(opt => h('button', {type: 'button', 'aria-pressed': String(a.producer === opt), 'data-home-choice': opt,
+          onclick: () => { a.producer = opt; renderAll(); say(`${FARMS[f].name}：受け入れを「${opt}」にしました（画面内のみ・通知なし）`); }}, opt)))));
+  }
+}
+
 function renderAll() {
   $('roleSelect').value = view.role;
   $('roleHint').textContent = ROLE_HINT[view.role];
   renderControls();
+  renderJourney();
   renderGeo();
   renderMap();
   renderRelList();

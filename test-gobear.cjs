@@ -15,11 +15,13 @@ const HTML = fs.readFileSync(__dirname + '/go-bear.html', 'utf8');
   const errors = [];
   const requests = [];
 
-  async function fresh(viewport = {width: 1200, height: 1000}) {
+  async function fresh(viewport = {width: 1200, height: 1000}, opts = {}) {
     const page = await browser.newPage({viewport});
     page.on('pageerror', e => errors.push(e.message));
     page.on('request', r => { if (/^https?:/.test(r.url())) requests.push(r.url()); });
     await page.setContent(HTML);
+    // 調整のための詳細は初期状態で閉じている。詳細を確かめるテストでは開いておく
+    if (opts.openDetails !== false) await page.evaluate(() => { document.getElementById('coordDetails').open = true; });
     return page;
   }
   async function test(name, fn) {
@@ -277,6 +279,32 @@ const HTML = fs.readFileSync(__dirname + '/go-bear.html', 'utf8');
     assert.equal(await page.inputValue('#farmSelect'), 'f2');
     await page.selectOption('#roleSelect', 'producer');
     assert.equal(await page.locator('[data-geo-mine]').count(), 0);
+    await page.close();
+  });
+
+  await test('あなたの手順：①畑を選ぶ→②行き方→③伝える→④当日まで（詳細は閉じたまま）', async () => {
+    const page = await fresh({width: 1200, height: 1000}, {openDetails: false});
+    assert.equal(await page.locator('#coordDetails').evaluate(d => d.open), false);
+    // ① 初期はP-01の便がある こもれび農園
+    assert.equal(await page.locator('[data-journey-farm="f1"]').getAttribute('aria-pressed'), 'true');
+    // ② 自分の便が行き・帰りの2つ、ボタンは最初から見える
+    assert.equal(await page.locator('[data-my-seg]').count(), 2);
+    await page.locator('[data-my-seg="d1|out|里山駅|f1|a"] [data-agree-offer="o01"]').click();
+    assert((await page.locator('[data-journey-status="f1"]').innerText()).includes('1 / 2 便を記録（あなたの側の記録）'));
+    // ③ 参加の選択
+    await page.locator('[data-journey-choice="相談したい"]').click();
+    assert.equal(await page.locator('[data-journey-state="f1"]').innerText(), '相談したい');
+    // 生産者の視点：来たい人数と受け入れだけ
+    await page.selectOption('#roleSelect', 'producer');
+    assert((await page.locator('[data-producer-seg="d1|out|里山駅|f1|a"]').innerText()).includes('乗りたい 5人・空席 3（2席不足）'));
+    await page.locator('[data-producer-home="f1"] [data-home-choice="延期"]').click();
+    // ④ 援農者に戻ると、受け入れは延期・移動の合意は記録のまま（別々）
+    await page.selectOption('#roleSelect', 'helper');
+    const st = await page.locator('[data-journey-status="f1"]').innerText();
+    assert(st.includes('延期') && st.includes('1 / 2 便を記録'));
+    // 別の畑：P-01 の便がない
+    await page.locator('[data-journey-farm="f2"]').click();
+    assert.equal(await page.locator('[data-no-mine]').count(), 1);
     await page.close();
   });
 
