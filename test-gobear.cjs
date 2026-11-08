@@ -228,8 +228,10 @@ const HTML = fs.readFileSync(__dirname + '/go-bear.html', 'utf8');
     assert.equal(s.want, 5);
     await page.selectOption('#roleSelect', 'helper');
     assert.equal(await page.locator('[data-producer-state="f1"]').innerText(), '延期');
-    await page.click('[data-participant-farm="f1"][data-participant-group="s1"][data-choice="見送り"]');
-    assert.equal(await page.locator('[data-participant-farm="f1"][data-participant-group="s1"][data-choice="見送り"]').getAttribute('aria-pressed'), 'true');
+    // 援農者は個人の参加を選ぶ（グループの選択は詳細で表示だけ）
+    assert.equal(await page.locator('[data-participant-farm]').count(), 0);
+    await page.locator('[data-journey-choice="相談したい"]').click();
+    assert.equal(await page.locator('[data-journey-state="f1"]').innerText(), '相談したい');
     s = await seg(page, K.outKomorebi);
     assert.equal(s.want, 5);
     await page.close();
@@ -241,8 +243,8 @@ const HTML = fs.readFileSync(__dirname + '/go-bear.html', 'utf8');
     assert.equal(await page.inputValue('#roleSelect'), 'helper');
     assert((await page.locator('#roleSelect option:checked').innerText()).includes('P-01'));
     assert.equal(await page.locator('[data-producer-farm]').count(), 0);
-    const groups = await page.locator('[data-participant-farm]').evaluateAll(els => [...new Set(els.map(e => e.dataset.participantGroup))]);
-    assert.deepEqual(groups, ['s1']);
+    assert.equal(await page.locator('[data-participant-farm]').count(), 0);
+    assert((await page.locator('[data-journey-choice]').count()) > 0);
     assert.equal(await page.locator('[data-my-group="true"]').count(), 1);
     assert((await page.locator('#rideSummary').innerText()).includes('あなたの便：2件'));
     // 生産者の視点
@@ -394,6 +396,27 @@ const HTML = fs.readFileSync(__dirname + '/go-bear.html', 'utf8');
     assert((await page.locator('[data-driver-agreed="d1|out|里山駅|f1|a"]').innerText()).includes('P-01（乗る人の側の記録）'));
     assert.equal(await page.locator('#journey button, #journey input, #journey select').count(), 0);
     assert.equal(await page.locator('[data-geo-mine]').count(), 0);
+    await page.close();
+  });
+
+  await test('同じ日に2つの畑の予定を入れられない（P-01 個人）', async () => {
+    const page = await fresh({width: 1200, height: 1000}, {openDetails: false});
+    // 初期：11/21 はこもれび農園に参加希望
+    assert.equal(await page.locator('[data-booked="f1"]').count(), 1);
+    assert((await page.locator('[data-conflict="f2"]').innerText()).includes('こもれび農園に予定あり'));
+    await page.locator('[data-journey-farm="f2"]').click();
+    assert.equal(await page.locator('[data-journey-choice="参加希望"]').isDisabled(), true);
+    assert.equal(await page.locator('[data-double]').count(), 1);
+    assert.equal(await page.locator('[data-attend-blocked]').count(), 1);
+    await page.locator('[data-journey-choice="相談したい"]').click();
+    assert.equal(await page.locator('[data-journey-state="f2"]').innerText(), '相談したい');
+    // こもれび農園を見送ると、みずべ農園に参加希望を出せる
+    await page.locator('[data-journey-farm="f1"]').click();
+    await page.locator('[data-journey-choice="見送り"]').click();
+    await page.locator('[data-journey-farm="f2"]').click();
+    assert.equal(await page.locator('[data-journey-choice="参加希望"]').isDisabled(), false);
+    await page.locator('[data-journey-choice="参加希望"]').click();
+    assert.equal(await page.locator('[data-booked="f2"]').count(), 1);
     await page.close();
   });
 

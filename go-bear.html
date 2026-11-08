@@ -125,6 +125,7 @@ button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
 .attend-form{margin-top:12px;padding:10px;border:1px dashed var(--line);border-radius:10px}
 .arrivals{font-size:13px}
 .arrivals td:first-child,.arrivals th:first-child{white-space:nowrap}
+.conflict{font-size:13px;font-weight:700;color:var(--warn)}
 .hidden{display:none!important}
 footer{font-size:13px;color:var(--muted);margin:20px 0 40px}
 </style>
@@ -387,11 +388,12 @@ const OFFERS_INIT = [
  * 状態
  * ------------------------------------------------------------------ */
 const clone = x => JSON.parse(JSON.stringify(x));
-let accept, riders, offers, attend;
+let accept, riders, offers, attend, myPart;
 const view = {role: 'helper', day: 'd1', farm: '', leg: 'both', edge: '', producerFarm: 'f1'};
 function resetData() {
   accept = clone(ACCEPT_INIT);
   attend = clone(ATTEND_INIT);
+  myPart = {d1: {f1: '参加希望'}, d2: {}};
   riders = clone(RIDERS_INIT);
   offers = clone(OFFERS_INIT);
 }
@@ -703,7 +705,7 @@ function renderAccept() {
           : h('span', {class: 'readonly-state'}, '生産者が選びます')),
       Object.entries(a.groups).map(([gid, st]) => h('div', {class: 'choice-row'},
         h('span', {class: 'label'}, (isHelper() && gid === PERSONA.group) ? `あなたのグループ（${groupName(gid)}）：` : `${groupName(gid)}の選択：`, h('br'), h('strong', {'data-participant-state': `${fid}-${gid}`}, st)),
-        (!isHelper() || gid !== PERSONA.group)
+        true
           ? h('span', {class: 'readonly-state'}, isProducer() ? '参加する側が選びます' : 'そのグループが選びます')
           : choiceButtons(PARTICIPANT_CHOICES, st, opt => {
               a.groups[gid] = opt; renderAll(); say(`${groupName(gid)}：参加の選択を「${opt}」にしました（画面内のみ）`);
@@ -884,6 +886,15 @@ const ROLE_HINT = {
 /* ------------------------------------------------------------------
  * あなたの手順（援農者 P-01）／この日の受け入れ（生産者）
  * ------------------------------------------------------------------ */
+/* P-01 の「予定」：参加希望、または滞在時間の申告がある農園。同じ日に1つだけにする */
+function bookedFarm(day) {
+  const part = myPart[day] || {};
+  const decl = attend[day] || {};
+  for (const f of Object.keys(FARMS)) {
+    if (part[f] === '参加希望' || (decl[f] && decl[f][PERSONA.person])) return f;
+  }
+  return '';
+}
 function journeyFarm() {
   const farms = Object.keys(accept[view.day] || {});
   if (view.farm && farms.includes(view.farm)) return view.farm;
@@ -913,6 +924,7 @@ function renderJourney() {
   const fid = journeyFarm();
   const segs = computeSegments();
 
+  const booked = bookedFarm(view.day);
   // ① 畑を選ぶ
   box.append(stepTitle(1, '畑を選ぶ'));
   if (!farms.length) { box.append(h('p', {class: 'muted'}, 'この日の活動予定はありません')); return; }
@@ -923,6 +935,8 @@ function renderJourney() {
       h('span', {class: 'fname'}, FARMS[f].name),
       h('span', {class: 'call', 'data-call': f}, `「${a.call}」`),
       recruitLine(a),
+      (booked && booked !== f) ? h('span', {class: 'conflict', 'data-conflict': f}, `この日は${FARMS[booked].name}に予定あり`) : null,
+      (booked === f) ? h('span', {class: 'mine-line', 'data-booked': f}, 'あなたの予定') : null,
       h('span', {}, acceptBadge(a), '　', h('small', {}, rel ? `あなたのグループ：${REL_STATUS[rel.status].label}` : 'あなたのグループ：まだ関係なし')));
   })));
 
@@ -948,18 +962,29 @@ function renderJourney() {
     }
   }
 
-  // ③ 伝える
+  // ③ 伝える（P-01 個人の参加）
   const a = dayAccept[fid];
+  const other = booked && booked !== fid ? booked : '';
+  const st = (myPart[view.day] || {})[fid] || '未選択';
   box.append(stepTitle(3, '農園に伝える'));
-  if (a && a.groups[PERSONA.group] !== undefined) {
-    const st = a.groups[PERSONA.group];
-    box.append(h('div', {class: 'choice-row'},
-      h('span', {class: 'label'}, `${groupName(PERSONA.group)}として：`, h('br'), h('strong', {'data-journey-state': fid}, st)),
-      PARTICIPANT_CHOICES.map(opt => h('button', {type: 'button', 'aria-pressed': String(st === opt), 'data-journey-choice': opt,
-        onclick: () => { a.groups[PERSONA.group] = opt; renderAll(); say(`「${opt}」を記録しました（画面内のみ・送信なし）`); }}, opt))));
-  } else {
-    box.append(h('p', {class: 'muted'}, 'この日、あなたのグループの参加の記録はありません（このデモでは新しい申し込みはできません）'));
-  }
+  box.append(h('div', {class: 'choice-row'},
+    h('span', {class: 'label'}, `あなた（${PERSONA.person}）の参加：`, h('br'), h('strong', {'data-journey-state': fid}, st)),
+    PARTICIPANT_CHOICES.map(opt => {
+      const blocked = opt === '参加希望' && other;
+      return h('button', {type: 'button', 'aria-pressed': String(st === opt), 'data-journey-choice': opt, disabled: blocked ? true : null,
+        title: blocked ? `この日は${FARMS[other].name}に予定があります` : null,
+        onclick: () => {
+          myPart[view.day] = myPart[view.day] || {};
+          myPart[view.day][fid] = opt;
+          let extra = '';
+          if ((opt === '延期' || opt === '見送り') && attend[view.day] && attend[view.day][fid] && attend[view.day][fid][PERSONA.person]) {
+            delete attend[view.day][fid][PERSONA.person];
+            extra = '滞在時間の申告も取り消しました。';
+          }
+          renderAll(); say(`「${opt}」を記録しました。${extra}（画面内のみ・送信なし）`);
+        }}, opt);
+    })));
+  if (other) box.append(h('p', {class: 'warn', 'data-double': 'true'}, `この日は${FARMS[other].name}に予定があります。同じ日に2つの畑の予定は入れられません。こちらにするには、先に${FARMS[other].name}で「延期」か「見送り」を選んでください（「相談したい」は選べます）。`));
 
   // ④ 当日まで
   const agreed = mine.filter(x => x.riders.some(r => r.person === PERSONA.person && r.status === '合意済み')).length;
@@ -972,6 +997,10 @@ function renderJourney() {
 
   // ④ 来る時間・帰る時間を伝える（P-01 の申告。画面内の反映のみ）
   const day = DAYS.find(d => d.id === view.day);
+  if (other) {
+    box.append(h('p', {class: 'muted', 'data-attend-blocked': 'true'}, `来る時間・帰る時間は、予定のある${FARMS[other].name}で伝えてください。`));
+    return;
+  }
   const prev = ((attend[view.day] || {})[fid] || {})[PERSONA.person];
   const mk = (id, opts, val) => h('select', {id}, opts.map(o => h('option', {value: o, selected: o === val ? true : null}, o)));
   const arr = mk('attendArrive', ARRIVE_TIMES, prev ? prev.arrive : '9:30');
