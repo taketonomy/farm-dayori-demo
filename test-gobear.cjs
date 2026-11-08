@@ -205,16 +205,47 @@ const HTML = fs.readFileSync(__dirname + '/go-bear.html', 'utf8');
 
   await test('農園の受け入れ合意と移動合意は別々に表示され、互いに自動では変わらない', async () => {
     const page = await fresh();
+    await page.selectOption('#roleSelect', 'producer');
     await page.click('[data-producer-farm="f1"][data-choice="延期"]');
     assert.equal(await page.locator('[data-producer-state="f1"]').innerText(), '延期');
     let s = await seg(page, K.outKomorebi);
     assert(s.accept.includes('生産者「延期」'));
     assert(s.ride.includes('0人 ／ 乗りたい 5人'));
     assert.equal(s.want, 5);
+    await page.selectOption('#roleSelect', 'helper');
+    assert.equal(await page.locator('[data-producer-state="f1"]').innerText(), '延期');
     await page.click('[data-participant-farm="f1"][data-participant-group="s1"][data-choice="見送り"]');
     assert.equal(await page.locator('[data-participant-farm="f1"][data-participant-group="s1"][data-choice="見送り"]').getAttribute('aria-pressed'), 'true');
     s = await seg(page, K.outKomorebi);
     assert.equal(s.want, 5);
+    await page.close();
+  });
+
+  await test('視点の切替：援農者は参加・相乗りを、生産者は受け入れだけを操作できる', async () => {
+    const page = await fresh();
+    // 初期は援農者の視点
+    assert.equal(await page.inputValue('#roleSelect'), 'helper');
+    assert((await page.locator('#roleHint').innerText()).includes('援農者の視点'));
+    assert.equal(await page.locator('[data-producer-farm]').count(), 0);
+    assert((await page.locator('[data-participant-farm]').count()) > 0);
+    const card = page.locator(`[data-seg="${K.outKomorebi}"]`);
+    await card.locator('details summary').click();
+    assert.equal(await card.locator('[data-rider="r01"] [data-agree-offer="o01"]').count(), 1);
+    assert((await card.locator('[data-offer="o01"] button').count()) > 0);
+    // 生産者の視点
+    await page.selectOption('#roleSelect', 'producer');
+    assert((await page.locator('#roleHint').innerText()).includes('生産者の視点'));
+    assert((await page.locator('[data-producer-farm]').count()) > 0);
+    assert.equal(await page.locator('[data-participant-farm]').count(), 0);
+    assert.equal(await page.locator('#segOut [data-rider] button, #segOut [data-offer] button, #segRet [data-rider] button, #segRet [data-offer] button').count(), 0);
+    assert.equal(await card.locator('[data-producer-ride-note]').count(), 1);
+    // 数値と関係図はどちらの視点でも同じ
+    const s = await seg(page, K.outKomorebi);
+    assert.deepEqual([s.want, s.seats, s.verdict], [5, 3, '2席不足']);
+    assert.equal(await page.locator('g.edge').count(), 6);
+    // やり直しで援農者の視点に戻る
+    await page.click('#reset');
+    assert.equal(await page.inputValue('#roleSelect'), 'helper');
     await page.close();
   });
 

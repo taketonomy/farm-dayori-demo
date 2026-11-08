@@ -86,6 +86,11 @@ details.entries summary{cursor:pointer;color:var(--accent);font-weight:600}
 .choice-row .label{min-width:9em;font-size:14px}
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 #toast{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);background:#223b30;color:#fff;padding:8px 14px;border-radius:10px;max-width:calc(100% - 32px);z-index:5}
+.role-box{margin:12px 0 0}
+.role-box label{display:block;font-size:13px;color:var(--muted)}
+.role-box select{min-width:min(100%,320px);font-weight:600}
+.role-hint{margin:6px 0 0;font-size:14px}
+.readonly-state{font-size:13px;color:var(--muted)}
 .hidden{display:none!important}
 footer{font-size:13px;color:var(--muted);margin:20px 0 40px}
 </style>
@@ -96,7 +101,15 @@ footer{font-size:13px;color:var(--muted);margin:20px 0 40px}
     <small>Natural Farming Mobility Hub / 操作デモ</small>
     <h1>Go Bear to Farm! 🐻🚲🌱</h1>
     <p>畑に関わりたい人の「行ってみたい」と、生産者の「来てほしい」を、畑までの移動も含めて確かめる画面です。</p>
-    <p class="banner" id="fictionNotice"><strong>すべて架空のデータです。</strong>実在の個人・農園・連絡先は含みません。自動マッチング・予約・外部送信はしません。操作の結果はこのブラウザの画面内だけに残り、再読み込みで元に戻ります。生産者／参加者の選択ボタンは表示の実演で、本人確認ではありません。</p>
+    <p class="banner" id="fictionNotice"><strong>すべて架空のデータです。</strong>実在の個人・農園・連絡先は含みません。自動マッチング・予約・外部送信はしません。操作の結果はこのブラウザの画面内だけに残り、再読み込みで元に戻ります。視点の切替は表示の実演で、本人確認ではありません。</p>
+    <div class="role-box">
+      <label for="roleSelect">デモの視点を切り替える（認証ではありません）</label>
+      <select id="roleSelect">
+        <option value="helper">援農者（畑に行ってみたい人）</option>
+        <option value="producer">生産者（受け入れる農園）</option>
+      </select>
+      <p id="roleHint" class="role-hint" aria-live="polite"></p>
+    </div>
   </header>
 
   <section class="card" aria-labelledby="ctlTitle">
@@ -304,7 +317,7 @@ const OFFERS_INIT = [
  * ------------------------------------------------------------------ */
 const clone = x => JSON.parse(JSON.stringify(x));
 let accept, riders, offers;
-const view = {day: 'd1', farm: '', leg: 'both', edge: ''};
+const view = {role: 'helper', day: 'd1', farm: '', leg: 'both', edge: ''};
 function resetData() {
   accept = clone(ACCEPT_INIT);
   riders = clone(RIDERS_INIT);
@@ -342,6 +355,7 @@ function say(msg) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => t.classList.add('hidden'), 3500);
 }
+const isProducer = () => view.role === 'producer';
 const groupName = id => SUPPORT_GROUPS.find(g => g.id === id).name;
 const producerGroupOf = farmId => PRODUCER_GROUPS.find(g => g.id === FARMS[farmId].group);
 const dayLabel = id => DAYS.find(d => d.id === id).label;
@@ -566,15 +580,19 @@ function renderAccept() {
       h('h3', {}, `${FARMS[fid].name}（${producerGroupOf(fid).name}）`),
       h('p', {class: 'muted'}, a.note),
       h('div', {class: 'choice-row'},
-        h('span', {class: 'label'}, '生産者として選ぶ：', h('br'), h('strong', {'data-producer-state': fid}, a.producer)),
-        choiceButtons(PRODUCER_CHOICES, a.producer, opt => {
-          a.producer = opt; renderAll(); say(`${FARMS[fid].name}：生産者の選択を「${opt}」にしました（画面内のみ）`);
-        }, `${FARMS[fid].name}の生産者`, {producerFarm: fid})),
+        h('span', {class: 'label'}, isProducer() ? 'あなた（生産者）の選択：' : '生産者の選択：', h('br'), h('strong', {'data-producer-state': fid}, a.producer)),
+        isProducer()
+          ? choiceButtons(PRODUCER_CHOICES, a.producer, opt => {
+              a.producer = opt; renderAll(); say(`${FARMS[fid].name}：受け入れを「${opt}」にしました（画面内のみ）`);
+            }, `${FARMS[fid].name}の生産者`, {producerFarm: fid})
+          : h('span', {class: 'readonly-state'}, '生産者が選びます')),
       Object.entries(a.groups).map(([gid, st]) => h('div', {class: 'choice-row'},
-        h('span', {class: 'label'}, `${groupName(gid)}として選ぶ：`, h('br'), h('strong', {}, st)),
-        choiceButtons(PARTICIPANT_CHOICES, st, opt => {
-          a.groups[gid] = opt; renderAll(); say(`${groupName(gid)}：参加の選択を「${opt}」にしました（画面内のみ）`);
-        }, `${groupName(gid)}`, {participantFarm: fid, participantGroup: gid})))));
+        h('span', {class: 'label'}, isProducer() ? `${groupName(gid)}の選択：` : `${groupName(gid)}として選ぶ：`, h('br'), h('strong', {'data-participant-state': `${fid}-${gid}`}, st)),
+        isProducer()
+          ? h('span', {class: 'readonly-state'}, '参加する側が選びます')
+          : choiceButtons(PARTICIPANT_CHOICES, st, opt => {
+              a.groups[gid] = opt; renderAll(); say(`${groupName(gid)}：参加の選択を「${opt}」にしました（画面内のみ）`);
+            }, `${groupName(gid)}`, {participantFarm: fid, participantGroup: gid})))));
   }
 }
 
@@ -614,6 +632,7 @@ function riderEntry(r, seg) {
       `重複申告：同じ日の${seg.leg === 'out' ? '往路' : '復路'}で「${routeText(dupOf)} ${SLOT[dupOf.slot]}」に先に申告しているため、この区間では数えません。`));
     return el;
   }
+  if (isProducer()) return el;
   const actions = h('div', {class: 'actions'});
   const setStatus = (st, msg) => { if (st !== '合意済み') delete r.offer; r.status = st; renderAll(); say(msg); };
   if (r.status === '合意済み') {
@@ -651,6 +670,7 @@ function offerEntry(o, seg) {
       `重複申告：同じ日の${seg.leg === 'out' ? '往路' : '復路'}で「${routeText(dupOf)} ${SLOT[dupOf.slot]}」に先に申告しているため、この区間の席には数えません。`));
     return el;
   }
+  if (isProducer()) return el;
   const releaseRiders = () => riders.filter(x => x.offer === o.id).forEach(x => { x.status = '相談中'; delete x.offer; });
   const setStatus = (st, msg) => { if (!OFFER_ACTIVE.includes(st)) releaseRiders(); o.status = st; renderAll(); say(msg); };
   const actions = h('div', {class: 'actions'});
@@ -683,7 +703,10 @@ function renderSegment(seg, scale) {
         `${seg.want.agreed}人 ／ 乗りたい ${seg.want.total}人`)),
     acceptWarn ? h('p', {class: 'muted'}, '農園の受け入れが合意されていない間は、移動の合意があっても活動の実施を意味しません。') : null);
   const details = h('details', {class: 'entries'},
-    h('summary', {}, `申告を見る・相談／延期／見送りを選ぶ（参加者 ${seg.riders.length}件・運転者 ${seg.offers.length}件）`),
+    h('summary', {}, isProducer()
+      ? `申告を見る（表示のみ・参加者 ${seg.riders.length}件・運転者 ${seg.offers.length}件）`
+      : `申告を見る・相談／延期／見送りを選ぶ（参加者 ${seg.riders.length}件・運転者 ${seg.offers.length}件）`),
+    isProducer() ? h('p', {class: 'muted', 'data-producer-ride-note': true}, '移動の合意は、運転者と同乗者のあいだで記録します。生産者の視点では表示だけです。') : null,
     h('h3', {}, '乗りたい人'),
     seg.riders.length ? seg.riders.map(r => riderEntry(r, seg)) : h('p', {class: 'muted'}, '申告はありません'),
     h('h3', {}, '席を提供できる人'),
@@ -746,7 +769,14 @@ function renderControls() {
   $('filterStatus').textContent = `${dayLabel(view.day)}／${view.farm ? FARMS[view.farm].name + 'に絞り込み中' : 'すべての農園'}／${$('legSelect').selectedOptions[0].textContent}`;
 }
 
+const ROLE_HINT = {
+  helper: '援農者の視点：関係図で行ってみたい農園を選び、駅・バス停からの相乗りの空きを確かめます。操作できるのは、参加の選択（参加希望・相談・延期・見送り）と、相乗りの相談・合意です。',
+  producer: '生産者の視点：どの援農グループとどんな関係にあるか、その日に何人が畑まで来られそうかを確かめます。操作できるのは、農園の受け入れの選択（相談中・受け入れ合意・延期・見送り）だけです。',
+};
+
 function renderAll() {
+  $('roleSelect').value = view.role;
+  $('roleHint').textContent = ROLE_HINT[view.role];
   renderControls();
   renderMap();
   renderRelList();
@@ -758,9 +788,10 @@ function renderAll() {
 $('daySelect').addEventListener('change', e => { view.day = e.target.value; renderAll(); });
 $('farmSelect').addEventListener('change', e => selectFarm(e.target.value));
 $('legSelect').addEventListener('change', e => { view.leg = e.target.value; renderAll(); });
+$('roleSelect').addEventListener('change', e => { view.role = e.target.value; renderAll(); say(`${e.target.selectedOptions[0].textContent}の視点に切り替えました（認証ではありません）`); });
 $('reset').addEventListener('click', () => {
   resetData();
-  Object.assign(view, {day: 'd1', farm: '', leg: 'both', edge: ''});
+  Object.assign(view, {role: 'helper', day: 'd1', farm: '', leg: 'both', edge: ''});
   openSegments.clear();
   renderAll();
   say('最初の状態に戻しました');
