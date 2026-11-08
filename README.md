@@ -83,7 +83,7 @@ CHROMIUM_PATH=/usr/bin/chromium npm test
 
 ## Go Bear to Farm!（追加部分）
 
-2026年11月8日に Claude Code で追加した操作デモです。上の畑だより v0.7（Codex 実装）とは別のファイルで、`farm-demo.html` は変更していません。制作ツールと時期の内訳は [PROVENANCE.md](PROVENANCE.md) を参照してください。
+2026年11月8日に Claude Code で追加した操作デモです。上の畑だより v0.7（Codex 実装）とは別のファイルで、`farm-demo.html` は変更していません。制作ツールと時期の内訳は [PROVENANCE.md](PROVENANCE.md)、確認結果は [VERIFICATION.md](VERIFICATION.md) を参照してください。
 
 - [デモのソース（go-bear.html）](go-bear.html)：パソコンのブラウザで直接開けます。外部通信・保存はありません。
 - すべて架空データです。自動マッチング・予約・配車・外部送信はしません。

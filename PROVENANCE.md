@@ -20,10 +20,13 @@ Go Bear to Farm! の作業では、`farm-demo.html`、仕様書、既存テス�
 | `go-bear.html` | Claude Code | 2026-11-08（JST 15時台） | 援農グループと生産者グループの関係図、活動日ごとの農園の受け入れ、駅・バス停から畑までの相乗り需給 |
 | `test-gobear.cjs` | Claude Code | 2026-11-08 | 上記の確認テスト15項目（Playwright） |
 | `PROVENANCE.md` | Claude Code | 2026-11-08 | この制作記録 |
+| `VERIFICATION.md` | Claude Code | 2026-11-08（JST 15時台） | 実画面での通し確認・テスト結果・未確認事項の記録 |
 | `package.json`（`test` スクリプトに1項目追加） | Claude Code | 2026-11-08 | `node test-gobear.cjs` を追加 |
 | `README.md`（「Go Bear to Farm!（追加部分）」節） | Claude Code | 2026-11-08 | 追加部分の説明。既存の文章は変更していません |
 
 同じ日の構想整理・既存リポジトリの確認・最小スコープの提案も Claude Code で行いました。
+
+デモ動画（日本語字幕・約2分41秒）は、Claude Code が Playwright で実画面の操作を録画し、ffmpeg で変換して作成しました（2026-11-08）。字幕と強調枠は録画のときだけ画面に重ねたもので、`go-bear.html` には含まれません。動画ファイルはリポジトリに含めていません。
 
 ## 注意
 
