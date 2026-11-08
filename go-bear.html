@@ -338,7 +338,9 @@ const OFFER_ACTIVE = ['提供申告', '相談中'];
 const SLOT = {a: '9:00〜9:30', b: '9:30〜10:00', c: '15:00〜15:30'};
 /* 集合場所（駅）。概念図の配置は仮で、実際の位置・方角・距離ではない */
 const HUB = '里山駅';
-const GEO = {hub: {x: 130, y: 140}, f1: {x: 470, y: 62}, f2: {x: 480, y: 200}, f5: {x: 560, y: 130}};
+/* 集合場所は運転する人が条件として出す（架空の駅） */
+const HUBS = ['里山駅', 'もみじ台駅'];
+const GEO = {hubs: {'里山駅': {x: 110, y: 100}, 'もみじ台駅': {x: 110, y: 200}}, f1: {x: 470, y: 62}, f2: {x: 480, y: 200}, f5: {x: 560, y: 130}};
 const RIDERS_INIT = [
   // 活動日1：里山駅 → こもれび農園 9:00〜9:30（希望5人）
   {id: 'r01', day: 'd1', leg: 'out', hub: '里山駅',     farm: 'f1', slot: 'a', person: 'P-01', status: '希望', at: '11/05 10:02'},
@@ -376,6 +378,8 @@ const OFFERS_INIT = [
   {id: 'o03', day: 'd1', leg: 'out', hub: '里山駅',     farm: 'f2', slot: 'a', driver: 'D-02', capacity: 5, existing: 0, status: '提供申告', at: '11/05 08:40'},
   {id: 'o04', day: 'd1', leg: 'ret', hub: '里山駅',     farm: 'f1', slot: 'c', driver: 'D-01', capacity: 5, existing: 3, status: '提供申告', at: '11/05 13:00'},
   {id: 'o05', day: 'd1', leg: 'ret', hub: '里山駅',     farm: 'f2', slot: 'c', driver: 'D-02', capacity: 5, existing: 2, status: '提供申告', at: '11/05 08:40'},
+  // D-05 は集合場所を「もみじ台駅」とする条件で提供
+  {id: 'o07', day: 'd1', leg: 'out', hub: 'もみじ台駅', farm: 'f1', slot: 'a', driver: 'D-05', capacity: 4, existing: 1, status: '提供申告', at: '11/06 19:30'},
   // D-02 が同じ日の復路で別区間にも申告（重複。先の申告だけ数える）
   {id: 'o06', day: 'd1', leg: 'ret', hub: '里山駅',     farm: 'f1', slot: 'c', driver: 'D-02', capacity: 5, existing: 2, status: '提供申告', at: '11/06 21:10'},
   // 活動日2
@@ -582,17 +586,21 @@ function renderGeo() {
   svg.replaceChildren();
   svg.append(s('title', {}, '駅と農園の位置関係の概念図'));
   const segs = computeSegments();
-  const hub = GEO.hub;
+  const usedHubs = HUBS.filter(hb => hb === HUB || segs.some(x => x.hub === hb));
+  const mySeg = isHelper() ? segs.find(x => x.leg === 'out' && hasMine(x) && x.farm === journeyFarm()) : null;
   for (const fid of Object.keys(FARMS)) {
     const p = GEO[fid];
     const fs = segs.filter(x => x.farm === fid);
     const selected = view.farm === fid;
-    if (fs.length) {
-      const outN = fs.filter(x => x.leg === 'out').length, retN = fs.filter(x => x.leg === 'ret').length;
-      const shortN = fs.filter(x => x.kind === 'short').length;
-      svg.append(s('line', {x1: hub.x + 40, y1: hub.y, x2: p.x - 70, y2: p.y, stroke: selected ? '#2f6b3f' : '#7d8f7c', 'stroke-width': selected ? 4 : 2.5, 'stroke-dasharray': '10 6', 'data-geo-route': fid}));
-      const mx = (hub.x + 40 + p.x - 70) / 2, my = (hub.y + p.y) / 2;
-      const label = `往路${outN}便・復路${retN}便` + (shortN ? `（不足のある便 ${shortN}）` : '');
+    for (const hb of usedHubs) {
+      const hs = fs.filter(x => x.hub === hb);
+      if (!hs.length) continue;
+      const hub = GEO.hubs[hb];
+      const outN = hs.filter(x => x.leg === 'out').length, retN = hs.filter(x => x.leg === 'ret').length;
+      const shortN = hs.filter(x => x.kind === 'short').length;
+      svg.append(s('line', {x1: hub.x + 36, y1: hub.y, x2: p.x - 70, y2: p.y, stroke: selected ? '#2f6b3f' : '#7d8f7c', 'stroke-width': selected ? 4 : 2.5, 'stroke-dasharray': '10 6', 'data-geo-route': fid, 'data-geo-hub-route': hb}));
+      const mx = hub.x + 36 + (p.x - 70 - hub.x - 36) * 0.45, my = hub.y + (p.y - hub.y) * 0.45;
+      const label = `行き${outN}・帰り${retN}便` + (shortN ? `・不足${shortN}` : '');
       const w = label.length * 11.5 + 14;
       svg.append(s('rect', {x: mx - w / 2, y: my - 12, width: w, height: 22, rx: 11, fill: '#fff', stroke: shortN ? '#9b3d1c' : '#7d8f7c'}));
       svg.append(s('text', {x: mx, y: my + 4, 'text-anchor': 'middle', 'font-size': 11.5, fill: shortN ? '#9b3d1c' : '#223b30', 'data-geo-label': fid}, label));
@@ -607,11 +615,14 @@ function renderGeo() {
     g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
     svg.append(g);
   }
-  svg.append(s('circle', {cx: hub.x, cy: hub.y, r: 40, fill: '#fff8e8', stroke: '#c49a3a', 'stroke-width': 3}));
-  svg.append(s('text', {x: hub.x, y: hub.y - 4, 'text-anchor': 'middle', 'font-size': 14, 'font-weight': 700, fill: '#223b30', 'data-geo-hub': 'true'}, HUB));
-  svg.append(s('text', {x: hub.x, y: hub.y + 14, 'text-anchor': 'middle', 'font-size': 11, fill: '#5f6f63'}, '集合場所'));
-  if (isHelper() && segs.some(hasMine))
-    svg.append(s('text', {x: hub.x, y: hub.y + 62, 'text-anchor': 'middle', 'font-size': 12, 'font-weight': 700, fill: '#b35c00', 'data-geo-mine': 'true'}, `あなた（${PERSONA.person}）はここに集合`));
+  for (const hb of usedHubs) {
+    const hub = GEO.hubs[hb];
+    const mine = mySeg && mySeg.hub === hb;
+    svg.append(s('circle', {cx: hub.x, cy: hub.y, r: 36, fill: '#fff8e8', stroke: '#c49a3a', 'stroke-width': mine ? 5 : 2}));
+    svg.append(s('text', {x: hub.x, y: hub.y - 3, 'text-anchor': 'middle', 'font-size': 13, 'font-weight': 700, fill: '#223b30', 'data-geo-hub': hb}, hb));
+    svg.append(s('text', {x: hub.x, y: hub.y + 13, 'text-anchor': 'middle', 'font-size': 10, fill: '#5f6f63'}, '集合場所の候補'));
+    if (mine) svg.append(s('text', {x: hub.x, y: hub.y - 44, 'text-anchor': 'middle', 'font-size': 12, 'font-weight': 700, fill: '#b35c00', 'data-geo-mine': 'true'}, `あなた（${PERSONA.person}）の集合場所`));
+  }
 }
 
 function renderRelList() {
@@ -758,13 +769,17 @@ function riderEntry(r, seg) {
     if (r.status !== '相談中') actions.append(h('button', {type: 'button', onclick: () => setStatus('相談中', `${r.person}：相談中にしました`)}, '相談する'));
     if (r.status === '延期' || r.status === '見送り') actions.append(h('button', {type: 'button', onclick: () => setStatus('希望', `${r.person}：希望に戻しました`)}, '希望に戻す'));
     if (active) {
-      for (const o of seg.countedOffers) {
+      // 同じ日・向き・農園・時間帯の便を出している運転者の条件（集合場所）を並べる
+      const offerDupAll = markDuplicates(offers, 'driver');
+      const cands = offers.filter(o => o.day === r.day && o.leg === r.leg && o.farm === r.farm && o.slot === r.slot && OFFER_ACTIVE.includes(o.status) && !offerDupAll.has(o.id));
+      for (const o of cands) {
         const used = riders.filter(x => x.offer === o.id && x.status === '合意済み').length;
         const left = freeSeats(o) - used;
-        actions.append(h('button', {type: 'button', 'data-agree-offer': o.id, disabled: left <= 0 ? true : null,
+        const moved = o.hub !== r.hub;
+        actions.append(h('button', {type: 'button', 'data-agree-offer': o.id, 'data-offer-hub': o.hub, disabled: left <= 0 ? true : null,
           title: left <= 0 ? 'この車の空席はすべて合意済みです' : null,
-          onclick: () => { r.offer = o.id; setStatus('合意済み', `${o.driver} との合意を記録しました（${r.person} 側の記録。相手の承認・送信はありません）`); }},
-          left > 0 ? `${o.driver} との合意を記録（残り${left}席）` : `${o.driver} の車は合意で満席`));
+          onclick: () => { r.hub = o.hub; r.offer = o.id; setStatus('合意済み', `${o.driver} の条件（集合：${o.hub}）を受け入れ、合意を記録しました（${r.person} 側の記録。相手の承認・送信はありません）`); }},
+          left > 0 ? `${o.driver} の条件（集合：${o.hub}${moved ? '・希望と別の駅' : ''}・残り${left}席）を受け入れて合意を記録` : `${o.driver} の車は合意で満席`));
       }
     }
   }
@@ -941,7 +956,7 @@ function renderJourney() {
   })));
 
   // ② 行き方
-  box.append(stepTitle(2, `${HUB}から${FARMS[fid].name}へ`));
+  box.append(stepTitle(2, `集合場所から${FARMS[fid].name}へ`));
   box.append(h('p', {class: 'geo-note', 'data-geo-note': 'true'}, '概念図：位置・方角・距離・経路・所要時間は未確認（仮の配置）'));
   const wrap = h('div', {class: 'map-wrap geo-wrap'});
   wrap.append(s('svg', {id: 'geoMap', viewBox: '0 30 640 220', role: 'group', 'aria-label': '集合場所の駅と農園の位置関係の概念図'}));
@@ -1105,7 +1120,7 @@ function renderProducerHome(box) {
 function renderDriverHome(box) {
   const segs = computeSegments().filter(x => x.offers.some(o => o.driver === DRIVER));
   box.append(stepTitle(1, `あなた（${DRIVER}）の車の便`));
-  box.append(h('p', {class: 'warn', 'data-driver-note': 'true'}, '表示だけです。運転する人がアプリで同乗を承認する機能はありません。同乗の合意は、乗る人の側の記録です。確認は顔を合わせて行います。'));
+  box.append(h('p', {class: 'warn', 'data-driver-note': 'true'}, '集合場所は、あなたが条件として出します。乗る人はその条件を受け入れて合意を記録します（乗る人の側の記録）。運転する人がアプリで同乗を承認する機能はありません。集合場所を変えると、合意を記録していた人は相談中に戻ります（通知なし）。'));
   if (!segs.length) { box.append(h('p', {class: 'muted'}, 'この日、あなたの車の便はありません')); return; }
   const scale = Math.max(1, ...segs.map(x => Math.max(x.want.total, x.seatsTotal)));
   for (const seg of segs) {
@@ -1118,6 +1133,15 @@ function renderDriverHome(box) {
         h('div', {class: `verdict ${seg.kind}`}, seg.verdict)),
       renderBars(seg, scale),
       h('div', {class: 'breakdown'}, `あなたの車：定員${o.capacity} − 運転する人1 − すでに乗る人${o.existing} ＝ 空席${freeSeats(o)}`, dup ? '（同じ向きの別の便に先に申告しているため、この便では数えません）' : ''),
+      h('div', {class: 'choice-row'}, h('label', {for: `hub-${o.id}`}, h('strong', {}, '集合場所の条件：')),
+        h('select', {id: `hub-${o.id}`, 'data-driver-hub': o.id, onchange: e => {
+            const v = e.target.value;
+            const affected = riders.filter(r => r.offer === o.id && r.status === '合意済み');
+            affected.forEach(r => { r.status = '相談中'; delete r.offer; });
+            o.hub = v;
+            renderAll();
+            say(`集合場所の条件を「${v}」にしました。${affected.length ? `合意を記録していた ${affected.map(r => r.person).join('、')} は相談中に戻ります（通知なし・再確認が必要）。` : ''}`);
+          }}, HUBS.map(hb => h('option', {value: hb, selected: hb === o.hub ? true : null}, hb)))),
       h('div', {'data-driver-agreed': seg.key}, h('strong', {}, 'あなたの車との合意を記録した人：'), withMe.length ? withMe.join('、') + '（乗る人の側の記録）' : 'まだいません'),
       h('div', {}, h('strong', {}, 'この便に乗りたい人：'), seg.counted.map(r => `${r.person}（${r.status}）`).join('、') || 'なし')));
   }

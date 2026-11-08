@@ -133,7 +133,7 @@ const HTML = fs.readFileSync(__dirname + '/go-bear.html', 'utf8');
     assert.equal(await page.inputValue('#farmSelect'), 'f2');
     // 解除で全農園に戻る
     await page.getByRole('button', {name: '選択と絞り込みを解除'}).click();
-    assert.equal(await page.locator('[data-seg]').count(), 5);
+    assert.equal(await page.locator('[data-seg]').count(), 6);
     await page.close();
   });
 
@@ -274,10 +274,11 @@ const HTML = fs.readFileSync(__dirname + '/go-bear.html', 'utf8');
   await test('概念図：駅と農園を仮の配置で示し、未確認であることを明記し、農園で絞り込める', async () => {
     const page = await fresh();
     assert((await page.locator('[data-geo-note]').textContent()).includes('未確認'));
-    assert.equal(await page.locator('[data-geo-hub]').textContent(), '里山駅');
-    assert.equal(await page.locator('[data-geo-route]').count(), 2);
+    assert.deepEqual(await page.locator('[data-geo-hub]').evaluateAll(els => els.map(e => e.textContent)), ['里山駅', 'もみじ台駅']);
+    assert.equal(await page.locator('[data-geo-route="f1"]').count(), 2);
+    assert.equal(await page.locator('[data-geo-route="f2"]').count(), 1);
     assert.equal(await page.locator('[data-geo-route="f5"]').count(), 0);
-    assert((await page.locator('[data-geo-label="f1"]').textContent()).includes('不足のある便'));
+    assert((await page.locator('[data-geo-label="f1"]').first().textContent()).includes('不足'));
     assert.equal(await page.locator('[data-geo-mine]').count(), 1);
     await page.click('g.geo-farm[data-geo-farm="f2"]');
     const farms = await page.locator('[data-seg]').evaluateAll(els => [...new Set(els.map(e => e.dataset.farm))]);
@@ -394,7 +395,8 @@ const HTML = fs.readFileSync(__dirname + '/go-bear.html', 'utf8');
     assert((await page.locator('[data-driver-note]').innerText()).includes('承認する機能はありません'));
     assert.equal(await page.locator('[data-driver-seg]').count(), 2);
     assert((await page.locator('[data-driver-agreed="d1|out|里山駅|f1|a"]').innerText()).includes('P-01（乗る人の側の記録）'));
-    assert.equal(await page.locator('#journey button, #journey input, #journey select').count(), 0);
+    assert.equal(await page.locator('#journey button, #journey input').count(), 0);
+    assert.equal(await page.locator('#journey select[data-driver-hub]').count(), 2);
     assert.equal(await page.locator('[data-geo-mine]').count(), 0);
     await page.close();
   });
@@ -417,6 +419,31 @@ const HTML = fs.readFileSync(__dirname + '/go-bear.html', 'utf8');
     assert.equal(await page.locator('[data-journey-choice="参加希望"]').isDisabled(), false);
     await page.locator('[data-journey-choice="参加希望"]').click();
     assert.equal(await page.locator('[data-booked="f2"]').count(), 1);
+    await page.close();
+  });
+
+  await test('集合場所は運転する人が条件として出し、乗る人が受け入れる', async () => {
+    const page = await fresh({width: 1200, height: 1000}, {openDetails: false});
+    const card = page.locator('[data-my-seg="d1|out|里山駅|f1|a"]');
+    // P-01 には、里山駅の D-01 と、もみじ台駅の D-05 の条件が並ぶ
+    assert.equal(await card.locator('[data-offer-hub="里山駅"]').count(), 1);
+    assert((await card.locator('[data-agree-offer="o07"]').innerText()).includes('集合：もみじ台駅・希望と別の駅'));
+    // D-05 の条件を受け入れると、P-01 はもみじ台駅の便に移る（里山駅の便は 4人／3席）
+    await card.locator('[data-agree-offer="o07"]').click();
+    assert.equal(await page.locator('[data-my-seg="d1|out|もみじ台駅|f1|a"]').count(), 1);
+    assert((await page.locator('[data-my-seg="d1|out|もみじ台駅|f1|a"] [data-rider-status]').innerText()).includes('D-05 の車'));
+    assert.equal(await page.locator('[data-geo-mine]').textContent(), 'あなた（P-01）の集合場所');
+    await page.evaluate(() => { document.getElementById('coordDetails').open = true; });
+    const s = await seg(page, K.outKomorebi);
+    assert.deepEqual([s.want, s.seats, s.verdict], [4, 3, '1席不足']);
+    // 運転する人 D-01 が集合場所を変えると、合意を記録していた人は相談中に戻る
+    await page.reload(); await page.setContent(HTML);
+    await page.locator('[data-my-seg="d1|out|里山駅|f1|a"] [data-agree-offer="o01"]').click();
+    await page.selectOption('#roleSelect', 'driver');
+    await page.selectOption('[data-driver-hub="o01"]', 'もみじ台駅');
+    assert((await page.locator('#toast').innerText()).includes('P-01 は相談中に戻ります'));
+    await page.selectOption('#roleSelect', 'helper');
+    assert.equal(await page.locator('[data-my-seg="d1|out|里山駅|f1|a"] [data-rider-status]').innerText(), '相談中');
     await page.close();
   });
 
