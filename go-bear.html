@@ -91,6 +91,10 @@ details.entries summary{cursor:pointer;color:var(--accent);font-weight:600}
 .role-box select{min-width:min(100%,320px);font-weight:600}
 .role-hint{margin:6px 0 0;font-size:14px}
 .readonly-state{font-size:13px;color:var(--muted)}
+.rules{margin:6px 0 10px;font-size:14px}
+.rules summary{cursor:pointer;color:var(--accent);font-weight:600}
+.rules ul{margin:6px 0;padding-left:20px}
+.pending{display:inline-block;font-size:12px;color:var(--warn);border:1px solid currentColor;border-radius:999px;padding:0 6px;margin-left:4px}
 .hidden{display:none!important}
 footer{font-size:13px;color:var(--muted);margin:20px 0 40px}
 </style>
@@ -101,7 +105,7 @@ footer{font-size:13px;color:var(--muted);margin:20px 0 40px}
     <small>Natural Farming Mobility Hub / 操作デモ</small>
     <h1>Go Bear to Farm! 🐻🚲🌱</h1>
     <p>畑に関わりたい人の「行ってみたい」と、生産者の「来てほしい」を、畑までの移動も含めて確かめる画面です。</p>
-    <p class="banner" id="fictionNotice"><strong>すべて架空のデータです。</strong>実在の個人・農園・連絡先は含みません。自動マッチング・予約・外部送信はしません。操作の結果はこのブラウザの画面内だけに残り、再読み込みで元に戻ります。視点の切替は表示の実演で、本人確認ではありません。</p>
+    <p class="banner" id="fictionNotice"><strong>すべて架空のデータです。</strong>予約・相乗りの手配・外部への送信はしません。操作はこの画面の中だけで、再読み込みすると元に戻ります。</p>
     <div class="role-box">
       <label for="roleSelect">デモの視点を切り替える（認証ではありません）</label>
       <select id="roleSelect">
@@ -129,17 +133,17 @@ footer{font-size:13px;color:var(--muted);margin:20px 0 40px}
 
   <section class="card" aria-labelledby="mapTitle">
     <h2 id="mapTitle">1. 援農グループと生産者グループの関係図</h2>
-    <p class="muted">線は「援農グループ」と「生産者グループ内の個々の農園」を結びます。生産者グループとの関係を、そのグループの全農園との関係としては扱いません。</p>
+    <p class="muted">線は援農グループと<strong>個々の農園</strong>を結びます（生産者グループ全体との関係ではありません）。</p>
     <div class="legend" aria-label="線の凡例">
       <span><svg width="44" height="10" aria-hidden="true"><line x1="2" y1="5" x2="42" y2="5" stroke="var(--st-done)" stroke-width="4"/></svg> 実線・太：活動実績あり</span>
       <span><svg width="44" height="10" aria-hidden="true"><line x1="2" y1="5" x2="42" y2="5" stroke="var(--st-talk)" stroke-width="3" stroke-dasharray="9 5"/></svg> 破線：初回を相談中</span>
       <span><svg width="44" height="10" aria-hidden="true"><line x1="2" y1="5" x2="42" y2="5" stroke="var(--st-intro)" stroke-width="3" stroke-dasharray="2 5" stroke-linecap="round"/></svg> 点線：紹介あり・未訪問</span>
     </div>
-    <p class="note"><strong>線がないことは「受け入れ不可」を意味しません。</strong>まだ記録された関係がない、というだけです。</p>
+    <p class="note"><strong>線がないことは「受け入れ不可」を意味しません。</strong></p>
     <div class="layout">
       <div>
         <div class="map-wrap"><svg id="relMap" viewBox="0 0 640 470" role="group" aria-label="援農グループと農園の関係図。線を選ぶと詳細を表示します"></svg></div>
-        <small>狭い画面では図を横にスクロールできます。同じ内容を下の一覧からも選べます。</small>
+        <small>狭い画面では図を横にスクロールできます。下の一覧からも選べます。</small>
         <h3>関係の一覧</h3>
         <ul id="relList" class="rel-list"></ul>
       </div>
@@ -149,14 +153,25 @@ footer{font-size:13px;color:var(--muted);margin:20px 0 40px}
 
   <section class="card" aria-labelledby="acceptTitle">
     <h2 id="acceptTitle">2. 農園の受け入れ（活動日ごと）</h2>
-    <p class="muted">畑で活動するかどうかの合意です。下の「相乗りの移動合意」とは別に記録します。どちらか一方が決まっても、もう一方は自動で決まりません。</p>
+    <p class="muted">畑で活動するかどうかの合意です。相乗りの合意とは別で、片方が決まってももう片方は自動では決まりません。</p>
     <div id="acceptList" class="accept"></div>
   </section>
 
   <section class="card" aria-labelledby="rideTitle">
     <h2 id="rideTitle">3. 公共交通から畑までのラストワンマイル：相乗りの需給</h2>
-    <p class="muted">「活動日 × 駅・バス停 × 農園 × 出発時間帯 × 往路／復路」ごとの区間で比べます。提供席数は、定員から運転者と既存の同乗者を除いた空席です。</p>
-    <p class="note">別の駅・農園・時間帯の余裕席で不足を埋め合わせて計算しません。往路と復路も別々に数えます。同じ人・同じ車が同じ日の同じ向きで複数の区間に申告した場合は、先に申告した区間だけで数えます。<br>人数と席数が同じでも、それだけで「成立」とは扱いません。合意は区間ごと・一人ずつ記録します。</p>
+    <p class="muted">駅・バス停と畑のあいだを、便ごとに「乗りたい人数」と「空いている席」で比べます。</p>
+    <details class="rules" id="rideRules">
+      <summary>数え方のルール</summary>
+      <ul>
+        <li>区間は「活動日 × 駅・バス停 × 農園 × 出発時間帯 × 往路／復路」。往路と復路は別々に数えます。</li>
+        <li>空いている席＝定員 − 運転者 − すでに乗る人。</li>
+        <li>別の駅・農園・時間帯の余裕席で、不足を埋め合わせた計算はしません。</li>
+        <li>同じ人・同じ車が同じ日の同じ向きで複数の区間に申し込んだ場合は、先に申し込んだ区間だけで数えます。</li>
+        <li>人数と席数が同じでも、それだけでは「成立」としません。合意は一人ずつ記録します。</li>
+        <li>農園の受け入れが決まるまでは、移動の合意があっても活動の実施を意味しません。</li>
+        <li>棒の見方：乗りたい人数は、濃い緑＝移動合意あり、斜線＝相談中、薄い緑＝希望。席数は、濃い青＝合意で埋まった席、薄い青＝まだ合意のない席。赤い点線の枠＝足りない席。</li>
+      </ul>
+    </details>
     <div id="rideSummary" class="muted" aria-live="polite"></div>
     <div id="legOut" class="leg-section">
       <h3>往路（駅・バス停 → 農園）</h3>
@@ -166,7 +181,6 @@ footer{font-size:13px;color:var(--muted);margin:20px 0 40px}
       <h3>復路（農園 → 駅・バス停）</h3>
       <div class="segments" id="segRet"></div>
     </div>
-    <p class="muted" style="margin-top:12px">凡例：乗りたい人数＝濃い緑「移動合意あり」、斜線「相談中」、薄い緑「希望の申告」。提供席数＝濃い青「合意で埋まった席」、薄い青「まだ合意のない空席」。赤い点線の枠は不足している席数。</p>
   </section>
 
   <section class="card">
@@ -693,20 +707,20 @@ function renderSegment(seg, scale) {
         h('small', {}, `${dayLabel(seg.day)}　${SLOT[seg.slot]}発　${seg.leg === 'out' ? '往路' : '復路'}`)),
       h('div', {class: `verdict ${seg.kind}`, 'data-verdict': true}, seg.verdict)),
     renderBars(seg, scale),
-    h('div', {class: 'breakdown'},
-      `乗りたい人数の内訳：移動合意あり ${seg.want.agreed}・相談中 ${seg.want.talk}・希望 ${seg.want.hope}`,
-      h('br'),
-      `提供席の内訳：${seg.countedOffers.map(o => `${o.driver}（${o.status}）${freeSeats(o)}席`).join('、') || 'なし'}`),
     h('div', {class: 'agree-lines'},
-      h('div', {'data-accept-line': true}, h('strong', {}, '農園の受け入れ合意：'), acceptText),
-      h('div', {'data-ride-line': true}, h('strong', {}, '運転者・同乗者の移動合意：'),
-        `${seg.want.agreed}人 ／ 乗りたい ${seg.want.total}人`)),
-    acceptWarn ? h('p', {class: 'muted'}, '農園の受け入れが合意されていない間は、移動の合意があっても活動の実施を意味しません。') : null);
+      h('div', {'data-accept-line': true}, h('strong', {}, '農園の受け入れ：'), acceptText,
+        acceptWarn ? h('span', {class: 'pending', title: '受け入れが決まるまで、移動の合意は活動の実施を意味しません'}, '未決定') : null),
+      h('div', {'data-ride-line': true}, h('strong', {}, '移動の合意：'),
+        `${seg.want.agreed}人 ／ 乗りたい ${seg.want.total}人`)));
   const details = h('details', {class: 'entries'},
     h('summary', {}, isProducer()
-      ? `申告を見る（表示のみ・参加者 ${seg.riders.length}件・運転者 ${seg.offers.length}件）`
-      : `申告を見る・相談／延期／見送りを選ぶ（参加者 ${seg.riders.length}件・運転者 ${seg.offers.length}件）`),
+      ? `申し込みを見る（表示のみ・${seg.riders.length + seg.offers.length}件）`
+      : `申し込みを見る・相談／合意／延期／見送り（${seg.riders.length + seg.offers.length}件）`),
     isProducer() ? h('p', {class: 'muted', 'data-producer-ride-note': true}, '移動の合意は、運転者と同乗者のあいだで記録します。生産者の視点では表示だけです。') : null,
+    h('p', {class: 'breakdown'},
+      `乗りたい人：移動合意あり ${seg.want.agreed}・相談中 ${seg.want.talk}・希望 ${seg.want.hope}`,
+      h('br'),
+      `席：${seg.countedOffers.map(o => `${o.driver}（${o.status}）${freeSeats(o)}席`).join('、') || 'なし'}`),
     h('h3', {}, '乗りたい人'),
     seg.riders.length ? seg.riders.map(r => riderEntry(r, seg)) : h('p', {class: 'muted'}, '申告はありません'),
     h('h3', {}, '席を提供できる人'),
@@ -770,8 +784,8 @@ function renderControls() {
 }
 
 const ROLE_HINT = {
-  helper: '援農者の視点：関係図で行ってみたい農園を選び、駅・バス停からの相乗りの空きを確かめます。操作できるのは、参加の選択（参加希望・相談・延期・見送り）と、相乗りの相談・合意です。',
-  producer: '生産者の視点：どの援農グループとどんな関係にあるか、その日に何人が畑まで来られそうかを確かめます。操作できるのは、農園の受け入れの選択（相談中・受け入れ合意・延期・見送り）だけです。',
+  helper: '援農者の視点：行ってみたい農園を選び、駅からの相乗りの空きを確かめます。押せるのは「参加の選択」と「相乗りの相談・合意」です。',
+  producer: '生産者の視点：援農グループとの関係と、その日に畑まで来られそうな人数を確かめます。押せるのは「受け入れの選択」だけです。',
 };
 
 function renderAll() {
