@@ -10,7 +10,7 @@ const root = path.join(__dirname, '..');
 const mapFile = path.join(root, 'names.local.json');
 if (!fs.existsSync(mapFile)) { console.log('names.local.json がないため、チェックを省略しました'); process.exit(0); }
 const names = Object.values(JSON.parse(fs.readFileSync(mapFile, 'utf8')));
-const files = execSync('git ls-files', {cwd: root, encoding: 'utf8'}).split('\n').filter(f => f && !/\.(pdf|png|jpg)$/i.test(f));
+const files = execSync('git ls-files', {cwd: root, encoding: 'utf8'}).split('\n').filter(f => f && !/\.(pdf|png|jpg|mp4)$/i.test(f));
 const staged = execSync('git diff --cached --name-only', {cwd: root, encoding: 'utf8'}).split('\n').filter(Boolean);
 let hits = 0;
 for (const f of new Set([...files, ...staged])) {
