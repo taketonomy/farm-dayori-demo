@@ -397,7 +397,7 @@ const view = {role: 'helper', day: 'd1', farm: '', leg: 'both', edge: '', produc
 function resetData() {
   accept = clone(ACCEPT_INIT);
   attend = clone(ATTEND_INIT);
-  myPart = {d1: {f1: '参加希望'}, d2: {}};
+  myPart = {d1: {}, d2: {}};
   riders = clone(RIDERS_INIT);
   offers = clone(OFFERS_INIT);
 }
@@ -921,9 +921,8 @@ function bookedFarm(day) {
 }
 function journeyFarm() {
   const farms = Object.keys(accept[view.day] || {});
-  if (view.farm && farms.includes(view.farm)) return view.farm;
-  const mine = computeSegments().find(hasMine);
-  return mine ? mine.farm : (farms[0] || '');
+  // 畑は利用者が選ぶまで決めない（初期の自動選択はしない）
+  return view.farm && farms.includes(view.farm) ? view.farm : '';
 }
 function stepTitle(n, text) { return h('h2', {}, h('span', {class: 'step-no'}, String(n)), text); }
 const ACCEPT_LABEL = {'相談中': '受け入れ：未決定（相談中）', '受け入れ合意': '受け入れ合意', '延期': '受け入れ：延期', '見送り': '受け入れ：見送り'};
@@ -964,6 +963,10 @@ function renderJourney() {
       h('span', {}, acceptBadge(a), '　', h('small', {}, rel ? `あなたのグループ：${REL_STATUS[rel.status].label}` : 'あなたのグループ：まだ関係なし')));
   })));
 
+  if (!fid) {
+    box.append(h('p', {class: 'muted', 'data-pick-farm': 'true'}, '畑を選ぶと、行き方と伝える手順が出ます。'));
+    return;
+  }
   // ② 行き方
   box.append(stepTitle(2, `集合場所から${FARMS[fid].name}へ`));
   box.append(h('p', {class: 'geo-note', 'data-geo-note': 'true'}, '概念図：位置・方角・距離・経路・所要時間は未確認（仮の配置）'));
