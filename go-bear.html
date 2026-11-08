@@ -95,6 +95,8 @@ details.entries summary{cursor:pointer;color:var(--accent);font-weight:600}
 .rules summary{cursor:pointer;color:var(--accent);font-weight:600}
 .rules ul{margin:6px 0;padding-left:20px}
 .pending{display:inline-block;font-size:12px;color:var(--warn);border:1px solid currentColor;border-radius:999px;padding:0 6px;margin-left:4px}
+.mine-badge{margin-left:6px;color:#b35c00;font-weight:700}
+.mine-line{margin:4px 0 0;font-size:13px;font-weight:700;color:#b35c00}
 .hidden{display:none!important}
 footer{font-size:13px;color:var(--muted);margin:20px 0 40px}
 </style>
@@ -104,12 +106,11 @@ footer{font-size:13px;color:var(--muted);margin:20px 0 40px}
   <header>
     <small>Natural Farming Mobility Hub / 操作デモ</small>
     <h1>Go Bear to Farm! 🐻🚲🌱</h1>
-    <p>畑に関わりたい人の「行ってみたい」と、生産者の「来てほしい」を、畑までの移動も含めて確かめる画面です。</p>
-    <p class="banner" id="fictionNotice"><strong>すべて架空のデータです。</strong>予約・相乗りの手配・外部への送信はしません。操作はこの画面の中だけで、再読み込みすると元に戻ります。</p>
+    <p class="banner" id="fictionNotice"><strong>すべて架空のデータです。</strong>予約・手配・送信はしません。</p>
     <div class="role-box">
       <label for="roleSelect">デモの視点を切り替える（認証ではありません）</label>
       <select id="roleSelect">
-        <option value="helper">援農者（畑に行ってみたい人）</option>
+        <option value="helper">援農者：P-01（くまの子援農クラブ・架空）</option>
         <option value="producer">生産者（受け入れる農園）</option>
       </select>
       <p id="roleHint" class="role-hint" aria-live="polite"></p>
@@ -128,12 +129,10 @@ footer{font-size:13px;color:var(--muted);margin:20px 0 40px}
           <option value="ret">復路だけ（農園 → 駅・バス停）</option>
         </select></div>
     </div>
-    <p id="filterStatus" class="muted" aria-live="polite"></p>
   </section>
 
   <section class="card" aria-labelledby="mapTitle">
     <h2 id="mapTitle">1. 援農グループと生産者グループの関係図</h2>
-    <p class="muted">線は援農グループと<strong>個々の農園</strong>を結びます（生産者グループ全体との関係ではありません）。</p>
     <div class="legend" aria-label="線の凡例">
       <span><svg width="44" height="10" aria-hidden="true"><line x1="2" y1="5" x2="42" y2="5" stroke="var(--st-done)" stroke-width="4"/></svg> 実線・太：活動実績あり</span>
       <span><svg width="44" height="10" aria-hidden="true"><line x1="2" y1="5" x2="42" y2="5" stroke="var(--st-talk)" stroke-width="3" stroke-dasharray="9 5"/></svg> 破線：初回を相談中</span>
@@ -143,7 +142,6 @@ footer{font-size:13px;color:var(--muted);margin:20px 0 40px}
     <div class="layout">
       <div>
         <div class="map-wrap"><svg id="relMap" viewBox="0 0 640 470" role="group" aria-label="援農グループと農園の関係図。線を選ぶと詳細を表示します"></svg></div>
-        <small>狭い画面では図を横にスクロールできます。下の一覧からも選べます。</small>
         <h3>関係の一覧</h3>
         <ul id="relList" class="rel-list"></ul>
       </div>
@@ -153,13 +151,11 @@ footer{font-size:13px;color:var(--muted);margin:20px 0 40px}
 
   <section class="card" aria-labelledby="acceptTitle">
     <h2 id="acceptTitle">2. 農園の受け入れ（活動日ごと）</h2>
-    <p class="muted">畑で活動するかどうかの合意です。相乗りの合意とは別で、片方が決まってももう片方は自動では決まりません。</p>
     <div id="acceptList" class="accept"></div>
   </section>
 
   <section class="card" aria-labelledby="rideTitle">
     <h2 id="rideTitle">3. 公共交通から畑までのラストワンマイル：相乗りの需給</h2>
-    <p class="muted">駅・バス停と畑のあいだを、便ごとに「乗りたい人数」と「空いている席」で比べます。</p>
     <details class="rules" id="rideRules">
       <summary>数え方のルール</summary>
       <ul>
@@ -184,13 +180,15 @@ footer{font-size:13px;color:var(--muted);margin:20px 0 40px}
   </section>
 
   <section class="card">
-    <h2>このデモでしないこと</h2>
+    <details>
+    <summary>このデモでしないこと</summary>
     <ul>
       <li>自動マッチング、予約、配車、台数保証、参加や乗車の自動確定はしません。</li>
       <li>外部への送信、通知、保存、ログインはありません。氏名・住所・電話番号の入力欄はありません。</li>
       <li>仮名ID（P-01 など）は照合を助けるための表示で、本人確認やなりすまし防止を保証するものではありません。最終的な確認は、畑や駅で顔を合わせて行う前提です。</li>
     </ul>
-    <button id="reset">デモを最初からやり直す</button>
+    </details>
+    <p><button id="reset">最初からやり直す</button></p>
   </section>
 
   <footer>
@@ -370,6 +368,10 @@ function say(msg) {
   toastTimer = setTimeout(() => t.classList.add('hidden'), 3500);
 }
 const isProducer = () => view.role === 'producer';
+/* 援農者の視点は、架空の1人の利用者として操作する */
+const PERSONA = {person: 'P-01', group: 's1'};
+const isMine = r => !isProducer() && r.person === PERSONA.person;
+const hasMine = seg => !isProducer() && seg.riders.some(r => r.person === PERSONA.person);
 const groupName = id => SUPPORT_GROUPS.find(g => g.id === id).name;
 const producerGroupOf = farmId => PRODUCER_GROUPS.find(g => g.id === FARMS[farmId].group);
 const dayLabel = id => DAYS.find(d => d.id === id).label;
@@ -472,8 +474,9 @@ function renderMap() {
 
   // 援農グループ
   for (const sg of SUPPORT_GROUPS) {
-    svg.append(s('rect', {x: SG_X, y: sg.y, width: SG_W, height: SG_H, rx: 28, fill: '#fff8e8', stroke: '#c49a3a', 'stroke-width': 1.5}));
-    svg.append(s('text', {x: SG_X + 14, y: sg.y + 22, 'font-size': 11, fill: '#5f6f63'}, '援農グループ'));
+    const mine = !isProducer() && sg.id === PERSONA.group;
+    svg.append(s('rect', {x: SG_X, y: sg.y, width: SG_W, height: SG_H, rx: 28, fill: '#fff8e8', stroke: '#c49a3a', 'stroke-width': mine ? 3.5 : 1.5, 'data-my-group': mine ? 'true' : null}));
+    svg.append(s('text', {x: SG_X + 14, y: sg.y + 22, 'font-size': 11, fill: '#5f6f63', 'font-weight': mine ? 700 : 400}, mine ? '援農グループ（あなた）' : '援農グループ'));
     svg.append(s('text', {x: SG_X + 14, y: sg.y + 42, 'font-size': 13.5, 'font-weight': 700, fill: '#223b30'}, sg.name));
   }
 
@@ -544,8 +547,7 @@ function renderDetail() {
         h('dt', {}, '直近の交流'), h('dd', {}, rel.recent),
         h('dt', {}, '次に相談したいこと'), h('dd', {}, rel.next),
         h('dt', {}, '選んだ活動日'), h('dd', {}, acceptanceSummary(rel.farm))),
-      h('p', {class: 'note'}, `この関係は「${FARMS[rel.farm].name}」との関係です。同じ${pg.name}の${others}との関係を意味しません。`),
-      h('p', {class: 'muted'}, `相乗りの需給を ${FARMS[rel.farm].name} に絞り込みました。`),
+      h('p', {class: 'note'}, `${FARMS[rel.farm].name}との関係です（${others}との関係ではありません）。`),
       h('button', {type: 'button', onclick: () => { view.edge = ''; view.farm = ''; renderAll(); }}, '選択と絞り込みを解除'));
     return;
   }
@@ -559,13 +561,11 @@ function renderDetail() {
       rels.length
         ? h('ul', {}, rels.map(r => h('li', {}, `${groupName(r.group)}：${REL_STATUS[r.status].label}`)))
         : h('p', {class: 'note', id: 'noRelNote'}, 'この農園と援農グループの関係は、まだ記録されていません。線がないことは「受け入れ不可」を意味しません。'),
-      h('p', {class: 'muted'}, `相乗りの需給を ${f.name} に絞り込みました。`),
       h('button', {type: 'button', onclick: () => selectFarm('')}, '絞り込みを解除'));
     return;
   }
   box.append(
-    h('h3', {}, '線または農園を選んでください'),
-    h('p', {class: 'muted'}, '線を選ぶと、関係する農園・活動内容・直近の交流・次に相談したいことが表示されます。農園を選ぶと、その農園への相乗り需給に絞り込みます。'));
+    h('p', {class: 'muted'}, '線か農園を選んでください'));
 }
 
 /* ------------------------------------------------------------------
@@ -601,9 +601,9 @@ function renderAccept() {
             }, `${FARMS[fid].name}の生産者`, {producerFarm: fid})
           : h('span', {class: 'readonly-state'}, '生産者が選びます')),
       Object.entries(a.groups).map(([gid, st]) => h('div', {class: 'choice-row'},
-        h('span', {class: 'label'}, isProducer() ? `${groupName(gid)}の選択：` : `${groupName(gid)}として選ぶ：`, h('br'), h('strong', {'data-participant-state': `${fid}-${gid}`}, st)),
-        isProducer()
-          ? h('span', {class: 'readonly-state'}, '参加する側が選びます')
+        h('span', {class: 'label'}, (!isProducer() && gid === PERSONA.group) ? `あなたのグループ（${groupName(gid)}）：` : `${groupName(gid)}の選択：`, h('br'), h('strong', {'data-participant-state': `${fid}-${gid}`}, st)),
+        (isProducer() || gid !== PERSONA.group)
+          ? h('span', {class: 'readonly-state'}, isProducer() ? '参加する側が選びます' : 'そのグループが選びます')
           : choiceButtons(PARTICIPANT_CHOICES, st, opt => {
               a.groups[gid] = opt; renderAll(); say(`${groupName(gid)}：参加の選択を「${opt}」にしました（画面内のみ）`);
             }, `${groupName(gid)}`, {participantFarm: fid, participantGroup: gid})))));
@@ -639,14 +639,14 @@ function riderEntry(r, seg) {
   const offer = r.offer ? offers.find(o => o.id === r.offer) : null;
   const statusText = r.status === '合意済み' && offer ? `移動合意済み（${offer.driver} の車）` : r.status;
   const el = h('div', {class: 'entry' + (dupOf ? ' excluded' : ''), 'data-rider': r.id},
-    h('div', {}, h('span', {class: 'who'}, `参加者 ${r.person}`), '（仮名ID・架空）　',
+    h('div', {}, h('span', {class: 'who'}, `参加者 ${r.person}`), isMine(r) ? h('span', {class: 'badge mine-badge'}, 'あなた') : null, '（仮名ID・架空）　',
       h('span', {class: 'badge', 'data-rider-status': r.status}, statusText), '　', h('small', {}, `申告 ${r.at}`)));
   if (dupOf) {
     el.append(h('p', {class: 'warn', 'data-dup': 'rider'},
       `重複申告：同じ日の${seg.leg === 'out' ? '往路' : '復路'}で「${routeText(dupOf)} ${SLOT[dupOf.slot]}」に先に申告しているため、この区間では数えません。`));
     return el;
   }
-  if (isProducer()) return el;
+  if (!isMine(r)) return el;
   const actions = h('div', {class: 'actions'});
   const setStatus = (st, msg) => { if (st !== '合意済み') delete r.offer; r.status = st; renderAll(); say(msg); };
   if (r.status === '合意済み') {
@@ -684,15 +684,6 @@ function offerEntry(o, seg) {
       `重複申告：同じ日の${seg.leg === 'out' ? '往路' : '復路'}で「${routeText(dupOf)} ${SLOT[dupOf.slot]}」に先に申告しているため、この区間の席には数えません。`));
     return el;
   }
-  if (isProducer()) return el;
-  const releaseRiders = () => riders.filter(x => x.offer === o.id).forEach(x => { x.status = '相談中'; delete x.offer; });
-  const setStatus = (st, msg) => { if (!OFFER_ACTIVE.includes(st)) releaseRiders(); o.status = st; renderAll(); say(msg); };
-  const actions = h('div', {class: 'actions'});
-  if (o.status !== '相談中') actions.append(h('button', {type: 'button', onclick: () => setStatus('相談中', `${o.driver}：相談中にしました`)}, '相談する'));
-  if (o.status === '延期' || o.status === '見送り') actions.append(h('button', {type: 'button', onclick: () => setStatus('提供申告', `${o.driver}：提供申告に戻しました`)}, '提供申告に戻す'));
-  if (o.status !== '延期') actions.append(h('button', {type: 'button', onclick: () => setStatus('延期', `${o.driver}：延期にしました。この車との移動合意は相談中に戻ります`)}, '延期'));
-  if (o.status !== '見送り') actions.append(h('button', {type: 'button', onclick: () => setStatus('見送り', `${o.driver}：見送りにしました。この車との移動合意は相談中に戻ります`)}, '見送り'));
-  el.append(actions);
   return el;
 }
 
@@ -706,6 +697,7 @@ function renderSegment(seg, scale) {
         h('div', {class: 'route'}, routeText(seg)),
         h('small', {}, `${dayLabel(seg.day)}　${SLOT[seg.slot]}発　${seg.leg === 'out' ? '往路' : '復路'}`)),
       h('div', {class: `verdict ${seg.kind}`, 'data-verdict': true}, seg.verdict)),
+    hasMine(seg) ? h('p', {class: 'mine-line', 'data-mine-seg': true}, 'あなたの便') : null,
     renderBars(seg, scale),
     h('div', {class: 'agree-lines'},
       h('div', {'data-accept-line': true}, h('strong', {}, '農園の受け入れ：'), acceptText,
@@ -713,10 +705,9 @@ function renderSegment(seg, scale) {
       h('div', {'data-ride-line': true}, h('strong', {}, '移動の合意：'),
         `${seg.want.agreed}人 ／ 乗りたい ${seg.want.total}人`)));
   const details = h('details', {class: 'entries'},
-    h('summary', {}, isProducer()
-      ? `申し込みを見る（表示のみ・${seg.riders.length + seg.offers.length}件）`
-      : `申し込みを見る・相談／合意／延期／見送り（${seg.riders.length + seg.offers.length}件）`),
-    isProducer() ? h('p', {class: 'muted', 'data-producer-ride-note': true}, '移動の合意は、運転者と同乗者のあいだで記録します。生産者の視点では表示だけです。') : null,
+    h('summary', {}, hasMine(seg)
+      ? `申し込み（${seg.riders.length + seg.offers.length}件）・あなたの操作`
+      : `申し込み（${seg.riders.length + seg.offers.length}件）`),
     h('p', {class: 'breakdown'},
       `乗りたい人：移動合意あり ${seg.want.agreed}・相談中 ${seg.want.talk}・希望 ${seg.want.hope}`,
       h('br'),
@@ -747,8 +738,10 @@ function renderRides() {
   }
   const visible = segs.filter(seg => view.leg === 'both' || seg.leg === view.leg);
   const count = k => visible.filter(seg => seg.kind === k).length;
+  const mineCount = visible.filter(hasMine).length;
   $('rideSummary').textContent =
-    `表示中の区間 ${visible.length}件：不足 ${count('short')}件／余裕 ${count('spare')}件／数量上一致 ${count('even')}件。区間どうしで余裕席と不足席を相殺した合計は出しません。`;
+    `${visible.length}区間（不足${count('short')}・余裕${count('spare')}・一致${count('even')}）。区間どうしで相殺しません。` +
+    (isProducer() ? '' : (mineCount ? `あなたの便：${mineCount}件` : 'あなたの申し込みはありません'));
 }
 
 /* ------------------------------------------------------------------
@@ -780,12 +773,11 @@ function renderControls() {
   }
   farm.value = view.farm;
   $('legSelect').value = view.leg;
-  $('filterStatus').textContent = `${dayLabel(view.day)}／${view.farm ? FARMS[view.farm].name + 'に絞り込み中' : 'すべての農園'}／${$('legSelect').selectedOptions[0].textContent}`;
 }
 
 const ROLE_HINT = {
-  helper: '援農者の視点：行ってみたい農園を選び、駅からの相乗りの空きを確かめます。押せるのは「参加の選択」と「相乗りの相談・合意」です。',
-  producer: '生産者の視点：援農グループとの関係と、その日に畑まで来られそうな人数を確かめます。押せるのは「受け入れの選択」だけです。',
+  helper: '',
+  producer: '生産者の視点：受け入れを選べます',
 };
 
 function renderAll() {

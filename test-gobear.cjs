@@ -83,7 +83,7 @@ const HTML = fs.readFileSync(__dirname + '/go-bear.html', 'utf8');
     assert.equal(a.verdict, '2席不足');
     assert.equal(b.verdict, '2席余裕');
     const summary = await page.locator('#rideSummary').innerText();
-    assert(summary.includes('相殺した合計は出しません'));
+    assert(summary.includes('区間どうしで相殺しません'));
     await page.close();
   });
 
@@ -121,7 +121,7 @@ const HTML = fs.readFileSync(__dirname + '/go-bear.html', 'utf8');
     const detail = await page.locator('#detail').innerText();
     for (const t of ['週末はたけ部', 'みずべ農園', '活動内容', '直近の交流', '次に相談したいこと', '復路の相乗りの集合場所'])
       assert(detail.includes(t), `詳細に「${t}」`);
-    assert(detail.includes('こもれび農園・ひだまり畑との関係を意味しません'));
+    assert(detail.includes('こもれび農園・ひだまり畑との関係ではありません'));
     const farms = await page.locator('[data-seg]').evaluateAll(els => [...new Set(els.map(e => e.dataset.farm))]);
     assert.deepEqual(farms, ['f2']);
     assert.equal(await page.inputValue('#farmSelect'), 'f2');
@@ -166,40 +166,48 @@ const HTML = fs.readFileSync(__dirname + '/go-bear.html', 'utf8');
     await page.close();
   });
 
-  await test('移動合意は一人ずつ記録し、空席を超えて合意できない', async () => {
+  await test('援農者 P-01 は自分の申し込みだけを操作でき、移動の合意は一人ずつ記録される', async () => {
     const page = await fresh();
-    const card = page.locator(`[data-seg="${K.retMizube}"]`);
+    const card = page.locator(`[data-seg="${K.outKomorebi}"]`);
+    assert.equal(await card.locator('[data-mine-seg]').count(), 1);
     await card.locator('details summary').click();
-    await card.locator('[data-rider="r13"] [data-agree-offer="o05"]').click();
-    let s = await seg(page, K.retMizube);
-    assert.equal(s.verdict, '数量上は一致・未合意');
-    assert(s.ride.includes('1人 ／ 乗りたい 2人'));
-    await card.locator('[data-rider="r14"] [data-agree-offer="o05"]').click();
-    s = await seg(page, K.retMizube);
-    assert.equal(s.verdict, '数量は一致・全員の移動合意を記録済み');
-    // こもれび往路：空席3に対して4人目は合意できない
-    const k = page.locator(`[data-seg="${K.outKomorebi}"]`);
-    await k.locator('details summary').click();
-    for (const id of ['r01', 'r02', 'r03']) await k.locator(`[data-rider="${id}"] [data-agree-offer="o01"]`).click();
-    assert.equal(await k.locator('[data-rider="r04"] [data-agree-offer="o01"]').isDisabled(), true);
-    const t = await seg(page, K.outKomorebi);
-    assert.equal(t.verdict, '2席不足');
+    // 自分（r01 = P-01）だけにボタン。ほかの参加者と運転者は表示だけ
+    assert((await card.locator('[data-rider="r01"] button').count()) > 0);
+    for (const id of ['r02', 'r03', 'r04', 'r05']) assert.equal(await card.locator(`[data-rider="${id}"] button`).count(), 0, id);
+    assert.equal(await card.locator('[data-offer] button').count(), 0);
+    await card.locator('[data-rider="r01"] [data-agree-offer="o01"]').click();
+    let s = await seg(page, K.outKomorebi);
+    assert(s.ride.includes('1人 ／ 乗りたい 5人'));
+    assert.equal(s.verdict, '2席不足');
+    assert((await card.locator('[data-rider="r01"] [data-rider-status]').innerText()).includes('移動合意済み（D-01 の車）'));
+    await card.locator('[data-rider="r01"]').getByRole('button', {name: '合意を取り消して相談中へ'}).click();
+    assert.equal(await card.locator('[data-rider="r01"] [data-rider-status]').innerText(), '相談中');
+    // 自分の申し込みがない便は表示だけ。数が一致していても未合意のまま
+    const m = page.locator(`[data-seg="${K.retMizube}"]`);
+    assert.equal(await m.locator('[data-mine-seg]').count(), 0);
+    await m.locator('details summary').click();
+    assert.equal(await m.locator('[data-rider] button, [data-offer] button').count(), 0);
+    assert.equal((await seg(page, K.retMizube)).verdict, '数量上は一致・未合意');
     await page.close();
   });
 
-  await test('参加者・運転者の延期／見送りは数から外れ、運転者の見送りで合意は相談中に戻る', async () => {
+  await test('P-01 の延期／見送りはその区間の人数から外れ、戻せる', async () => {
     const page = await fresh();
     const card = page.locator(`[data-seg="${K.outKomorebi}"]`);
     await card.locator('details summary').click();
-    await card.locator('[data-rider="r05"]').getByRole('button', {name: '見送り'}).click();
-    await card.locator('[data-rider="r04"]').getByRole('button', {name: '延期'}).click();
+    await card.locator('[data-rider="r01"]').getByRole('button', {name: '見送り'}).click();
     let s = await seg(page, K.outKomorebi);
-    assert.deepEqual([s.want, s.seats, s.verdict], [3, 3, '数量上は一致・未合意']);
-    await card.locator('[data-rider="r01"] [data-agree-offer="o01"]').click();
-    await card.locator('[data-offer="o01"]').getByRole('button', {name: '見送り'}).click();
+    assert.deepEqual([s.want, s.seats, s.verdict], [4, 3, '1席不足']);
+    await card.locator('[data-rider="r01"]').getByRole('button', {name: '希望に戻す'}).click();
     s = await seg(page, K.outKomorebi);
-    assert.deepEqual([s.want, s.seats, s.verdict], [3, 0, '3席不足']);
-    assert.equal(await card.locator('[data-rider="r01"] [data-rider-status]').innerText(), '相談中');
+    assert.deepEqual([s.want, s.verdict], [5, '2席不足']);
+    // 復路は別に数える
+    const r = page.locator(`[data-seg="${K.retKomorebi}"]`);
+    await r.locator('details summary').click();
+    await r.locator('[data-rider="r09"]').getByRole('button', {name: '延期'}).click();
+    const rs = await seg(page, K.retKomorebi);
+    assert.deepEqual([rs.want, rs.seats, rs.verdict], [3, 1, '2席不足']);
+    assert.equal((await seg(page, K.outKomorebi)).want, 5);
     await page.close();
   });
 
@@ -221,29 +229,35 @@ const HTML = fs.readFileSync(__dirname + '/go-bear.html', 'utf8');
     await page.close();
   });
 
-  await test('視点の切替：援農者は参加・相乗りを、生産者は受け入れだけを操作できる', async () => {
+  await test('視点の切替：援農者 P-01 は自分の参加・相乗りを、生産者は受け入れだけを操作できる', async () => {
     const page = await fresh();
-    // 初期は援農者の視点
+    // 初期は援農者 P-01 の視点
     assert.equal(await page.inputValue('#roleSelect'), 'helper');
-    assert((await page.locator('#roleHint').innerText()).includes('援農者の視点'));
+    assert((await page.locator('#roleSelect option:checked').innerText()).includes('P-01'));
     assert.equal(await page.locator('[data-producer-farm]').count(), 0);
-    assert((await page.locator('[data-participant-farm]').count()) > 0);
-    const card = page.locator(`[data-seg="${K.outKomorebi}"]`);
-    await card.locator('details summary').click();
-    assert.equal(await card.locator('[data-rider="r01"] [data-agree-offer="o01"]').count(), 1);
-    assert((await card.locator('[data-offer="o01"] button').count()) > 0);
+    const groups = await page.locator('[data-participant-farm]').evaluateAll(els => [...new Set(els.map(e => e.dataset.participantGroup))]);
+    assert.deepEqual(groups, ['s1']);
+    assert.equal(await page.locator('[data-my-group="true"]').count(), 1);
+    assert((await page.locator('#rideSummary').innerText()).includes('あなたの便：2件'));
     // 生産者の視点
     await page.selectOption('#roleSelect', 'producer');
     assert((await page.locator('#roleHint').innerText()).includes('生産者の視点'));
     assert((await page.locator('[data-producer-farm]').count()) > 0);
     assert.equal(await page.locator('[data-participant-farm]').count(), 0);
+    assert.equal(await page.locator('[data-mine-seg]').count(), 0);
+    const card = page.locator(`[data-seg="${K.outKomorebi}"]`);
+    await card.locator('details summary').click();
     assert.equal(await page.locator('#segOut [data-rider] button, #segOut [data-offer] button, #segRet [data-rider] button, #segRet [data-offer] button').count(), 0);
-    assert.equal(await card.locator('[data-producer-ride-note]').count(), 1);
     // 数値と関係図はどちらの視点でも同じ
     const s = await seg(page, K.outKomorebi);
     assert.deepEqual([s.want, s.seats, s.verdict], [5, 3, '2席不足']);
     assert.equal(await page.locator('g.edge').count(), 6);
+    // 自分の申し込みがない日
+    await page.selectOption('#roleSelect', 'helper');
+    await page.selectOption('#daySelect', 'd2');
+    assert((await page.locator('#rideSummary').innerText()).includes('あなたの申し込みはありません'));
     // やり直しで援農者の視点に戻る
+    await page.selectOption('#roleSelect', 'producer');
     await page.click('#reset');
     assert.equal(await page.inputValue('#roleSelect'), 'helper');
     await page.close();
