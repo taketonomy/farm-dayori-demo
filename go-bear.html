@@ -599,10 +599,11 @@ function renderGeo() {
       const hs = fs.filter(x => x.hub === hb);
       if (!hs.length) continue;
       const hub = GEO.hubs[hb];
-      const outN = hs.filter(x => x.leg === 'out').length, retN = hs.filter(x => x.leg === 'ret').length;
-      const shortN = hs.filter(x => x.kind === 'short').length;
       svg.append(s('line', {x1: hub.x + 36, y1: hub.y, x2: p.x - 70, y2: p.y, stroke: selected ? '#2f6b3f' : '#7d8f7c', 'stroke-width': selected ? 4 : 2.5, 'stroke-dasharray': '10 6', 'data-geo-route': fid, 'data-geo-hub-route': hb}));
-      labels.push({hb, fid, y: p.y, text: `→${FARMS[fid].name}　行き${outN}・帰り${retN}便` + (shortN ? `（不足${shortN}）` : ''), short: shortN > 0});
+      // ラベルは 🐻 P-01 自身の便だけに付ける（全体の集計は出さない）
+      for (const x of hs.filter(hasMine)) {
+        labels.push({hb, fid, y: p.y + (x.leg === 'ret' ? 1 : 0), text: `🐻 あなたの${x.leg === 'out' ? '行き' : '帰り'} ${SLOT[x.slot].split('〜')[0]}発：${x.verdict}`, short: x.kind === 'short'});
+      }
     }
     const g = s('g', {class: 'geo-farm', tabindex: 0, role: 'button', 'data-geo-farm': fid, 'aria-pressed': String(selected),
       'aria-label': `${FARMS[fid].name}を選んで需給を絞り込む`, opacity: fs.length ? 1 : 0.55});
