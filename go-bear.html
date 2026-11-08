@@ -1,0 +1,773 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Go Bear to Farm!</title>
+<!--
+  Go Bear to Farm! / Natural Farming Mobility Hub — 操作デモ
+  2026-11-08 Claude Code で新規追加。既存の farm-demo.html（v0.7・Codex 実装）とは別ファイル。
+  すべて架空データ。外部通信・保存・自動マッチング・予約・送信はしない。
+-->
+<style>
+:root{
+  --bg:#f6f4ec;--card:#fffdf7;--ink:#223b30;--muted:#5f6f63;--line:#d7dccf;
+  --accent:#2f6b3f;--warn:#9b3d1c;--ok:#2f6b3f;
+  --st-done:#2f6b3f;--st-talk:#8a5a00;--st-intro:#4b5f86;
+  --bar-agreed:#2f6b3f;--bar-talk:#7fa76a;--bar-want:#c9dcbf;--bar-seat:#4b5f86;--bar-seat-light:#b9c6e0;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.65 system-ui,-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif}
+main{max-width:1080px;margin:0 auto;padding:16px}
+h1{font-size:24px;margin:4px 0}
+h2{font-size:19px;margin:0 0 8px}
+h3{font-size:16px;margin:12px 0 6px}
+p{margin:6px 0}
+small,.muted{color:var(--muted)}
+button,select{font:inherit;color:inherit}
+button{border:1px solid #9fb09e;background:#fff;border-radius:8px;padding:6px 10px;cursor:pointer;min-height:36px}
+button:hover{background:#eef3e9}
+button[aria-pressed="true"]{background:var(--accent);color:#fff;border-color:var(--accent)}
+button:disabled{opacity:.45;cursor:not-allowed}
+button:focus-visible,select:focus-visible,.edge:focus-visible,.farm-node:focus-visible{outline:3px solid #e0a100;outline-offset:2px}
+select{padding:6px 8px;border-radius:8px;border:1px solid #9fb09e;background:#fff;min-height:36px;max-width:100%}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin:14px 0}
+.banner{background:#fff4d6;border:1px solid #e3c675;border-radius:10px;padding:10px 12px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.controls label{display:block;font-size:13px;color:var(--muted)}
+.controls select{width:100%}
+.badge{display:inline-block;border:1px solid currentColor;border-radius:999px;padding:0 8px;font-size:12px;line-height:20px;white-space:nowrap}
+.layout{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:14px}
+@media (max-width:820px){.layout{grid-template-columns:minmax(0,1fr)}}
+.map-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--line);border-radius:10px;background:#fff}
+.map-wrap svg{display:block;min-width:600px;width:100%;height:auto}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;margin:8px 0;font-size:13px}
+.legend svg{vertical-align:middle}
+.rel-list{list-style:none;padding:0;margin:8px 0;display:grid;gap:6px}
+.rel-list button{width:100%;text-align:left}
+.detail dl{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:4px 10px;margin:8px 0}
+.detail dt{color:var(--muted);font-size:13px}
+.detail dd{margin:0}
+.note{background:#eef3e9;border-left:4px solid var(--accent);padding:6px 10px;border-radius:6px;font-size:14px}
+.warn{background:#fbebe4;border-left:4px solid var(--warn);padding:6px 10px;border-radius:6px;font-size:14px}
+.segments{display:grid;gap:12px}
+.seg{border:1px solid var(--line);border-radius:12px;padding:12px;background:#fff}
+.seg header{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:baseline;justify-content:space-between}
+.seg .route{font-weight:700}
+.verdict{font-weight:700;font-size:15px}
+.verdict.short{color:var(--warn)}
+.verdict.spare{color:var(--ok)}
+.verdict.even{color:var(--st-talk)}
+.bars{display:grid;grid-template-columns:7.5em minmax(0,1fr) 3.2em;gap:6px 8px;align-items:center;margin:10px 0 4px}
+.track{position:relative;height:22px;background:#f1f1ec;border-radius:4px;display:flex;overflow:hidden}
+.track span{display:block;height:100%}
+.b-agreed{background:var(--bar-agreed)}
+.b-talk{background:repeating-linear-gradient(135deg,var(--bar-talk) 0 6px,#a9c799 6px 10px)}
+.b-want{background:var(--bar-want)}
+.b-seat-used{background:var(--bar-seat)}
+.b-seat-open{background:var(--bar-seat-light)}
+.b-gap{background:repeating-linear-gradient(45deg,transparent 0 5px,rgba(155,61,28,.25) 5px 8px);outline:2px dashed var(--warn);outline-offset:-2px}
+.num{font-variant-numeric:tabular-nums;font-weight:700;text-align:right}
+.breakdown{font-size:13px;color:var(--muted)}
+.agree-lines{display:grid;gap:4px;margin:8px 0;font-size:14px}
+.agree-lines div{display:flex;flex-wrap:wrap;gap:4px 8px}
+details.entries{margin-top:8px}
+details.entries summary{cursor:pointer;color:var(--accent);font-weight:600}
+.entry{border-top:1px dashed var(--line);padding:8px 0}
+.entry.excluded{opacity:.7}
+.entry .who{font-weight:600}
+.entry .actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.entry .actions button{font-size:13px;padding:4px 8px;min-height:32px}
+.leg-section{margin-top:14px}
+.accept{display:grid;gap:10px}
+.accept-item{border:1px solid var(--line);border-radius:12px;padding:12px;background:#fff}
+.choice-row{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:4px 0}
+.choice-row .label{min-width:9em;font-size:14px}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+#toast{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);background:#223b30;color:#fff;padding:8px 14px;border-radius:10px;max-width:calc(100% - 32px);z-index:5}
+.hidden{display:none!important}
+footer{font-size:13px;color:var(--muted);margin:20px 0 40px}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <small>Natural Farming Mobility Hub / 操作デモ</small>
+    <h1>Go Bear to Farm! 🐻🚲🌱</h1>
+    <p>畑に関わりたい人の「行ってみたい」と、生産者の「来てほしい」を、畑までの移動も含めて確かめる画面です。</p>
+    <p class="banner" id="fictionNotice"><strong>すべて架空のデータです。</strong>実在の個人・農園・連絡先は含みません。自動マッチング・予約・外部送信はしません。操作の結果はこのブラウザの画面内だけに残り、再読み込みで元に戻ります。生産者／参加者の選択ボタンは表示の実演で、本人確認ではありません。</p>
+  </header>
+
+  <section class="card" aria-labelledby="ctlTitle">
+    <h2 id="ctlTitle">表示する活動日と農園</h2>
+    <div class="controls">
+      <div><label for="daySelect">活動日</label><select id="daySelect"></select></div>
+      <div><label for="farmSelect">農園で絞り込む（関係図からも選べます）</label><select id="farmSelect"></select></div>
+      <div><label for="legSelect">往路・復路</label>
+        <select id="legSelect">
+          <option value="both">往路と復路を分けて両方表示</option>
+          <option value="out">往路だけ（駅・バス停 → 農園）</option>
+          <option value="ret">復路だけ（農園 → 駅・バス停）</option>
+        </select></div>
+    </div>
+    <p id="filterStatus" class="muted" aria-live="polite"></p>
+  </section>
+
+  <section class="card" aria-labelledby="mapTitle">
+    <h2 id="mapTitle">1. 援農グループと生産者グループの関係図</h2>
+    <p class="muted">線は「援農グループ」と「生産者グループ内の個々の農園」を結びます。生産者グループとの関係を、そのグループの全農園との関係としては扱いません。</p>
+    <div class="legend" aria-label="線の凡例">
+      <span><svg width="44" height="10" aria-hidden="true"><line x1="2" y1="5" x2="42" y2="5" stroke="var(--st-done)" stroke-width="4"/></svg> 実線・太：活動実績あり</span>
+      <span><svg width="44" height="10" aria-hidden="true"><line x1="2" y1="5" x2="42" y2="5" stroke="var(--st-talk)" stroke-width="3" stroke-dasharray="9 5"/></svg> 破線：初回を相談中</span>
+      <span><svg width="44" height="10" aria-hidden="true"><line x1="2" y1="5" x2="42" y2="5" stroke="var(--st-intro)" stroke-width="3" stroke-dasharray="2 5" stroke-linecap="round"/></svg> 点線：紹介あり・未訪問</span>
+    </div>
+    <p class="note"><strong>線がないことは「受け入れ不可」を意味しません。</strong>まだ記録された関係がない、というだけです。</p>
+    <div class="layout">
+      <div>
+        <div class="map-wrap"><svg id="relMap" viewBox="0 0 640 470" role="group" aria-label="援農グループと農園の関係図。線を選ぶと詳細を表示します"></svg></div>
+        <small>狭い画面では図を横にスクロールできます。同じ内容を下の一覧からも選べます。</small>
+        <h3>関係の一覧</h3>
+        <ul id="relList" class="rel-list"></ul>
+      </div>
+      <aside id="detail" class="detail" aria-live="polite"></aside>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="acceptTitle">
+    <h2 id="acceptTitle">2. 農園の受け入れ（活動日ごと）</h2>
+    <p class="muted">畑で活動するかどうかの合意です。下の「相乗りの移動合意」とは別に記録します。どちらか一方が決まっても、もう一方は自動で決まりません。</p>
+    <div id="acceptList" class="accept"></div>
+  </section>
+
+  <section class="card" aria-labelledby="rideTitle">
+    <h2 id="rideTitle">3. 公共交通から畑までのラストワンマイル：相乗りの需給</h2>
+    <p class="muted">「活動日 × 駅・バス停 × 農園 × 出発時間帯 × 往路／復路」ごとの区間で比べます。提供席数は、定員から運転者と既存の同乗者を除いた空席です。</p>
+    <p class="note">別の駅・農園・時間帯の余裕席で不足を埋め合わせて計算しません。往路と復路も別々に数えます。同じ人・同じ車が同じ日の同じ向きで複数の区間に申告した場合は、先に申告した区間だけで数えます。<br>人数と席数が同じでも、それだけで「成立」とは扱いません。合意は区間ごと・一人ずつ記録します。</p>
+    <div id="rideSummary" class="muted" aria-live="polite"></div>
+    <div id="legOut" class="leg-section">
+      <h3>往路（駅・バス停 → 農園）</h3>
+      <div class="segments" id="segOut"></div>
+    </div>
+    <div id="legRet" class="leg-section">
+      <h3>復路（農園 → 駅・バス停）</h3>
+      <div class="segments" id="segRet"></div>
+    </div>
+    <p class="muted" style="margin-top:12px">凡例：乗りたい人数＝濃い緑「移動合意あり」、斜線「相談中」、薄い緑「希望の申告」。提供席数＝濃い青「合意で埋まった席」、薄い青「まだ合意のない空席」。赤い点線の枠は不足している席数。</p>
+  </section>
+
+  <section class="card">
+    <h2>このデモでしないこと</h2>
+    <ul>
+      <li>自動マッチング、予約、配車、台数保証、参加や乗車の自動確定はしません。</li>
+      <li>外部への送信、通知、保存、ログインはありません。氏名・住所・電話番号の入力欄はありません。</li>
+      <li>仮名ID（P-01 など）は照合を助けるための表示で、本人確認やなりすまし防止を保証するものではありません。最終的な確認は、畑や駅で顔を合わせて行う前提です。</li>
+    </ul>
+    <button id="reset">デモを最初からやり直す</button>
+  </section>
+
+  <footer>
+    2026.11.08 Claude Code で新規追加（go-bear.html）／既存の畑だより v0.7（farm-demo.html・2026.11.04 Codex 実装）は変更していません／オフラインで動作・外部通信なし
+  </footer>
+</main>
+<div id="toast" role="status" class="hidden"></div>
+
+<script>
+'use strict';
+
+/* ------------------------------------------------------------------
+ * 架空データ
+ * ------------------------------------------------------------------ */
+const DAYS = [
+  {id: 'd1', label: '11月21日（土）'},
+  {id: 'd2', label: '11月28日（土）'},
+];
+
+const SUPPORT_GROUPS = [
+  {id: 's1', name: 'くまの子援農クラブ', y: 50},
+  {id: 's2', name: '週末はたけ部', y: 200},
+  {id: 's3', name: 'ワーホリ前の畑体験の会', y: 350},
+];
+
+const PRODUCER_GROUPS = [
+  {id: 'pg1', name: '里山しぜん農の会', y: 14, h: 262, farms: ['f1', 'f2', 'f3']},
+  {id: 'pg2', name: '丘の有機の会', y: 290, h: 170, farms: ['f4', 'f5']},
+];
+
+const FARMS = {
+  f1: {name: 'こもれび農園', group: 'pg1', y: 54},
+  f2: {name: 'みずべ農園', group: 'pg1', y: 132},
+  f3: {name: 'ひだまり畑', group: 'pg1', y: 210},
+  f4: {name: 'おかのうえ農園', group: 'pg2', y: 330},
+  f5: {name: 'そよかぜ畑', group: 'pg2', y: 400},
+};
+
+const REL_STATUS = {
+  done:  {label: '活動実績あり',     color: 'var(--st-done)',  width: 4, dash: null},
+  talk:  {label: '初回を相談中',     color: 'var(--st-talk)',  width: 3, dash: '9 5'},
+  intro: {label: '紹介あり・未訪問', color: 'var(--st-intro)', width: 3, dash: '2 5'},
+};
+
+/* 関係は「援農グループ × 農園」単位で持つ（生産者グループ単位では持たない） */
+const RELATIONS = [
+  {id: 'e1', group: 's1', farm: 'f1', status: 'done', t: 0.5,
+    activity: 'にんじんの間引き・草取り',
+    recent: '11/3 にんじんの間引きを5人で（この農園では初めての5人の受け入れ）',
+    next: '一度に来られる人数と、雨の日の代わりの作業'},
+  {id: 'e2', group: 's1', farm: 'f2', status: 'talk', t: 0.62,
+    activity: '玉ねぎの定植（予定）',
+    recent: '11/6 畑のたよりを見て「行ってみたい」と伝えた',
+    next: '初回の顔合わせの日と持ち物'},
+  {id: 'e3', group: 's2', farm: 'f2', status: 'done', t: 0.28,
+    activity: '草取り・里芋の収穫・野菜の受け取り',
+    recent: '10/25 里芋の収穫',
+    next: '復路の相乗りの集合場所'},
+  {id: 'e4', group: 's2', farm: 'f4', status: 'intro', t: 0.62,
+    activity: 'まだ活動はありません',
+    recent: '10/30 みずべ農園から紹介を受けた',
+    next: '見学できる日があるか'},
+  {id: 'e5', group: 's3', farm: 'f1', status: 'intro', t: 0.7,
+    activity: 'まだ活動はありません',
+    recent: '11/1 くまの子援農クラブから紹介を受けた',
+    next: '初回に話したいこと（海外の農場で働く前に体験したい）'},
+  {id: 'e6', group: 's3', farm: 'f3', status: 'talk', t: 0.3,
+    activity: '冬野菜の種まき（予定）',
+    recent: '11/4 初回の対面相談の日程を調整中',
+    next: '駅からの行き方と、天候で延期するときの連絡方法'},
+];
+
+/* 農園の受け入れ（活動日 × 農園）。生産者の選択と、参加グループの選択を別々に持つ */
+const PRODUCER_CHOICES = ['相談中', '受け入れ合意', '延期', '見送り'];
+const PARTICIPANT_CHOICES = ['参加希望', '相談したい', '延期', '見送り'];
+const ACCEPT_INIT = {
+  d1: {
+    f1: {producer: '相談中', note: '5人以上を一度に迎えるのは2回目。人数と作業内容を相談中', groups: {s1: '参加希望', s3: '相談したい'}},
+    f2: {producer: '受け入れ合意', note: '玉ねぎの定植。4人まで', groups: {s2: '参加希望', s1: '相談したい'}},
+  },
+  d2: {
+    f3: {producer: '相談中', note: '初回の顔合わせを兼ねる', groups: {s3: '相談したい'}},
+    f2: {producer: '受け入れ合意', note: '草取り。天候により延期あり', groups: {s2: '参加希望'}},
+  },
+};
+
+/* 相乗り：一人ずつ・一台ずつの申告として持つ（集計値は持たない） */
+const RIDER_ACTIVE = ['希望', '相談中', '合意済み'];
+const OFFER_ACTIVE = ['提供申告', '相談中'];
+const SLOT = {a: '9:00〜9:30', b: '9:30〜10:00', c: '15:00〜15:30'};
+const RIDERS_INIT = [
+  // 活動日1：里山駅 → こもれび農園 9:00〜9:30（希望5人）
+  {id: 'r01', day: 'd1', leg: 'out', hub: '里山駅',     farm: 'f1', slot: 'a', person: 'P-01', status: '希望', at: '11/05 10:02'},
+  {id: 'r02', day: 'd1', leg: 'out', hub: '里山駅',     farm: 'f1', slot: 'a', person: 'P-02', status: '希望', at: '11/05 10:15'},
+  {id: 'r03', day: 'd1', leg: 'out', hub: '里山駅',     farm: 'f1', slot: 'a', person: 'P-03', status: '希望', at: '11/05 11:40'},
+  {id: 'r04', day: 'd1', leg: 'out', hub: '里山駅',     farm: 'f1', slot: 'a', person: 'P-04', status: '希望', at: '11/05 12:01'},
+  {id: 'r05', day: 'd1', leg: 'out', hub: '里山駅',     farm: 'f1', slot: 'a', person: 'P-05', status: '希望', at: '11/05 18:30'},
+  // P-03 が同じ日の往路で別の時間帯にも申告（重複。先の申告だけ数える）
+  {id: 'r06', day: 'd1', leg: 'out', hub: '里山駅',     farm: 'f1', slot: 'b', person: 'P-03', status: '希望', at: '11/06 08:10'},
+  // 川辺バス停 → みずべ農園 9:00〜9:30（希望2人）
+  {id: 'r07', day: 'd1', leg: 'out', hub: '川辺バス停', farm: 'f2', slot: 'a', person: 'P-06', status: '希望', at: '11/05 09:20'},
+  {id: 'r08', day: 'd1', leg: 'out', hub: '川辺バス停', farm: 'f2', slot: 'a', person: 'P-07', status: '希望', at: '11/05 20:45'},
+  // 復路：こもれび農園 → 里山駅 15:00〜15:30（希望4人）
+  {id: 'r09', day: 'd1', leg: 'ret', hub: '里山駅',     farm: 'f1', slot: 'c', person: 'P-01', status: '希望', at: '11/05 10:02'},
+  {id: 'r10', day: 'd1', leg: 'ret', hub: '里山駅',     farm: 'f1', slot: 'c', person: 'P-02', status: '希望', at: '11/05 10:15'},
+  {id: 'r11', day: 'd1', leg: 'ret', hub: '里山駅',     farm: 'f1', slot: 'c', person: 'P-04', status: '希望', at: '11/05 12:01'},
+  {id: 'r12', day: 'd1', leg: 'ret', hub: '里山駅',     farm: 'f1', slot: 'c', person: 'P-08', status: '希望', at: '11/06 07:55'},
+  // 復路：みずべ農園 → 川辺バス停 15:00〜15:30（希望2人）
+  {id: 'r13', day: 'd1', leg: 'ret', hub: '川辺バス停', farm: 'f2', slot: 'c', person: 'P-06', status: '希望', at: '11/05 09:20'},
+  {id: 'r14', day: 'd1', leg: 'ret', hub: '川辺バス停', farm: 'f2', slot: 'c', person: 'P-07', status: '希望', at: '11/05 20:45'},
+  // 活動日2
+  {id: 'r21', day: 'd2', leg: 'out', hub: '里山駅',     farm: 'f3', slot: 'b', person: 'P-11', status: '合意済み', offer: 'o21', at: '11/06 10:00'},
+  {id: 'r22', day: 'd2', leg: 'out', hub: '里山駅',     farm: 'f3', slot: 'b', person: 'P-12', status: '相談中', at: '11/06 12:30'},
+  {id: 'r23', day: 'd2', leg: 'out', hub: '里山駅',     farm: 'f3', slot: 'b', person: 'P-13', status: '希望', at: '11/07 09:10'},
+  {id: 'r24', day: 'd2', leg: 'ret', hub: '里山駅',     farm: 'f3', slot: 'c', person: 'P-11', status: '希望', at: '11/06 10:00'},
+  {id: 'r25', day: 'd2', leg: 'ret', hub: '里山駅',     farm: 'f3', slot: 'c', person: 'P-12', status: '希望', at: '11/06 12:30'},
+  {id: 'r26', day: 'd2', leg: 'ret', hub: '里山駅',     farm: 'f3', slot: 'c', person: 'P-13', status: '希望', at: '11/07 09:10'},
+  {id: 'r27', day: 'd2', leg: 'out', hub: '川辺バス停', farm: 'f2', slot: 'a', person: 'P-14', status: '希望', at: '11/07 11:00'},
+  {id: 'r28', day: 'd2', leg: 'ret', hub: '川辺バス停', farm: 'f2', slot: 'c', person: 'P-14', status: '見送り', at: '11/07 11:00'},
+];
+const OFFERS_INIT = [
+  // 空席 = 定員 − 運転者1 − 既存の同乗者
+  {id: 'o01', day: 'd1', leg: 'out', hub: '里山駅',     farm: 'f1', slot: 'a', driver: 'D-01', capacity: 5, existing: 1, status: '提供申告', at: '11/05 13:00'},
+  {id: 'o02', day: 'd1', leg: 'out', hub: '里山駅',     farm: 'f1', slot: 'b', driver: 'D-04', capacity: 4, existing: 1, status: '提供申告', at: '11/05 19:00'},
+  {id: 'o03', day: 'd1', leg: 'out', hub: '川辺バス停', farm: 'f2', slot: 'a', driver: 'D-02', capacity: 5, existing: 0, status: '提供申告', at: '11/05 08:40'},
+  {id: 'o04', day: 'd1', leg: 'ret', hub: '里山駅',     farm: 'f1', slot: 'c', driver: 'D-01', capacity: 5, existing: 3, status: '提供申告', at: '11/05 13:00'},
+  {id: 'o05', day: 'd1', leg: 'ret', hub: '川辺バス停', farm: 'f2', slot: 'c', driver: 'D-02', capacity: 5, existing: 2, status: '提供申告', at: '11/05 08:40'},
+  // D-02 が同じ日の復路で別区間にも申告（重複。先の申告だけ数える）
+  {id: 'o06', day: 'd1', leg: 'ret', hub: '里山駅',     farm: 'f1', slot: 'c', driver: 'D-02', capacity: 5, existing: 2, status: '提供申告', at: '11/06 21:10'},
+  // 活動日2
+  {id: 'o21', day: 'd2', leg: 'out', hub: '里山駅',     farm: 'f3', slot: 'b', driver: 'D-11', capacity: 4, existing: 0, status: '相談中', at: '11/06 09:00'},
+  {id: 'o22', day: 'd2', leg: 'ret', hub: '里山駅',     farm: 'f3', slot: 'c', driver: 'D-11', capacity: 4, existing: 1, status: '提供申告', at: '11/06 09:00'},
+  {id: 'o23', day: 'd2', leg: 'ret', hub: '川辺バス停', farm: 'f2', slot: 'c', driver: 'D-12', capacity: 2, existing: 0, status: '提供申告', at: '11/07 15:00'},
+];
+
+/* ------------------------------------------------------------------
+ * 状態
+ * ------------------------------------------------------------------ */
+const clone = x => JSON.parse(JSON.stringify(x));
+let accept, riders, offers;
+const view = {day: 'd1', farm: '', leg: 'both', edge: ''};
+function resetData() {
+  accept = clone(ACCEPT_INIT);
+  riders = clone(RIDERS_INIT);
+  offers = clone(OFFERS_INIT);
+}
+
+/* ------------------------------------------------------------------
+ * 小さな道具
+ * ------------------------------------------------------------------ */
+const $ = id => document.getElementById(id);
+const SVGNS = 'http://www.w3.org/2000/svg';
+function h(tag, attrs, ...children) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v === undefined || v === null || v === false) continue;
+    if (k === 'class') el.className = v;
+    else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
+    else if (k === 'dataset') Object.assign(el.dataset, v);
+    else el.setAttribute(k, v === true ? '' : v);
+  }
+  for (const c of children.flat()) if (c !== null && c !== undefined && c !== false) el.append(c);
+  return el;
+}
+function s(tag, attrs, ...children) {
+  const el = document.createElementNS(SVGNS, tag);
+  for (const [k, v] of Object.entries(attrs || {})) if (v !== undefined && v !== null) el.setAttribute(k, v);
+  for (const c of children) el.append(c);
+  return el;
+}
+let toastTimer;
+function say(msg) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.remove('hidden');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.add('hidden'), 3500);
+}
+const groupName = id => SUPPORT_GROUPS.find(g => g.id === id).name;
+const producerGroupOf = farmId => PRODUCER_GROUPS.find(g => g.id === FARMS[farmId].group);
+const dayLabel = id => DAYS.find(d => d.id === id).label;
+const freeSeats = o => Math.max(0, o.capacity - 1 - o.existing);
+const routeText = seg => seg.leg === 'out'
+  ? `${seg.hub} → ${FARMS[seg.farm].name}`
+  : `${FARMS[seg.farm].name} → ${seg.hub}`;
+
+/* ------------------------------------------------------------------
+ * 需給の計算（区間ごと。区間どうしで相殺しない）
+ * ------------------------------------------------------------------ */
+function segKey(e) { return [e.day, e.leg, e.hub, e.farm, e.slot].join('|'); }
+
+/* 同じ日・同じ向きで、同じ人（同じ車）が複数区間に有効な申告をしていたら、
+   先に申告したものだけ数え、後のものは「重複のため計上外」とする */
+function markDuplicates(list, who) {
+  const firstBy = new Map();
+  const sorted = list.filter(e => e.day === view.day).slice().sort((a, b) => a.at.localeCompare(b.at) || a.id.localeCompare(b.id));
+  const active = who === 'person' ? RIDER_ACTIVE : OFFER_ACTIVE;
+  const dup = new Map();
+  for (const e of sorted) {
+    if (!active.includes(e.status)) continue;
+    const k = `${e.day}|${e.leg}|${e[who]}`;
+    if (firstBy.has(k)) dup.set(e.id, firstBy.get(k));
+    else firstBy.set(k, e);
+  }
+  return dup; // entryId -> 先に数えた申告
+}
+
+function computeSegments() {
+  const riderDup = markDuplicates(riders, 'person');
+  const offerDup = markDuplicates(offers, 'driver');
+  const map = new Map();
+  const ensure = e => {
+    const k = segKey(e);
+    if (!map.has(k)) map.set(k, {key: k, day: e.day, leg: e.leg, hub: e.hub, farm: e.farm, slot: e.slot, riders: [], offers: []});
+    return map.get(k);
+  };
+  for (const r of riders.filter(r => r.day === view.day)) ensure(r).riders.push(r);
+  for (const o of offers.filter(o => o.day === view.day)) ensure(o).offers.push(o);
+
+  const segs = [...map.values()].map(seg => {
+    const counted = seg.riders.filter(r => RIDER_ACTIVE.includes(r.status) && !riderDup.has(r.id));
+    const countedOffers = seg.offers.filter(o => OFFER_ACTIVE.includes(o.status) && !offerDup.has(o.id));
+    const want = {
+      agreed: counted.filter(r => r.status === '合意済み').length,
+      talk: counted.filter(r => r.status === '相談中').length,
+      hope: counted.filter(r => r.status === '希望').length,
+    };
+    want.total = want.agreed + want.talk + want.hope;
+    const seatsTotal = countedOffers.reduce((n, o) => n + freeSeats(o), 0);
+    const seatsUsed = want.agreed; // 合意済みの人は必ず数えた車の席に紐づく
+    const diff = seatsTotal - want.total;
+    let verdict, kind;
+    if (want.total === 0 && seatsTotal === 0) { verdict = '有効な希望・提供なし'; kind = 'none'; }
+    else if (diff < 0) { verdict = `${-diff}席不足`; kind = 'short'; }
+    else if (diff > 0) { verdict = `${diff}席余裕`; kind = 'spare'; }
+    else if (want.agreed === want.total) { verdict = '数量は一致・全員の移動合意を記録済み'; kind = 'even'; }
+    else { verdict = '数量上は一致・未合意'; kind = 'even'; }
+    return Object.assign(seg, {counted, countedOffers, want, seatsTotal, seatsUsed, diff, verdict, kind, riderDup, offerDup});
+  });
+  const order = {a: 0, b: 1, c: 2};
+  segs.sort((a, b) => a.hub.localeCompare(b.hub, 'ja') || a.farm.localeCompare(b.farm) || order[a.slot] - order[b.slot]);
+  return segs;
+}
+
+/* ------------------------------------------------------------------
+ * 1. 関係図
+ * ------------------------------------------------------------------ */
+const SG_X = 10, SG_W = 172, SG_H = 56;
+const FARM_X = 412, FARM_W = 210, FARM_H = 48;
+
+function activeFarmsOnDay() { return Object.keys(accept[view.day] || {}); }
+
+function renderMap() {
+  const svg = $('relMap');
+  svg.replaceChildren();
+  svg.append(s('title', {}, '援農グループと農園の関係図'));
+  const activeFarms = activeFarmsOnDay();
+
+  // 生産者グループの枠と農園
+  for (const pg of PRODUCER_GROUPS) {
+    svg.append(s('rect', {x: 400, y: pg.y, width: 234, height: pg.h, rx: 12, fill: '#f3f6ee', stroke: '#9fb09e', 'stroke-dasharray': '4 3'}));
+    svg.append(s('text', {x: 410, y: pg.y + 24, 'font-size': 13, 'font-weight': 700, fill: '#223b30'}, `生産者グループ：${pg.name}`));
+    for (const fid of pg.farms) {
+      const f = FARMS[fid];
+      const selected = view.farm === fid;
+      const g = s('g', {class: 'farm-node', tabindex: 0, role: 'button', 'data-farm': fid,
+        'aria-label': `${f.name}（${pg.name}）を選んで相乗り需給を絞り込む`, 'aria-pressed': String(selected), style: 'cursor:pointer'});
+      g.append(s('rect', {x: FARM_X, y: f.y, width: FARM_W, height: FARM_H, rx: 8, fill: selected ? '#2f6b3f' : '#fff', stroke: selected ? '#2f6b3f' : '#7d8f7c', 'stroke-width': selected ? 3 : 1.5}));
+      g.append(s('text', {x: FARM_X + 10, y: f.y + 20, 'font-size': 14, 'font-weight': 700, fill: selected ? '#fff' : '#223b30'}, f.name));
+      g.append(s('text', {x: FARM_X + 10, y: f.y + 39, 'font-size': 11, fill: selected ? '#fff' : '#5f6f63'},
+        activeFarms.includes(fid) ? `${dayLabel(view.day)} 活動予定あり` : `${dayLabel(view.day)} 活動予定の記録なし`));
+      const pick = () => selectFarm(selected ? '' : fid);
+      g.addEventListener('click', pick);
+      g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
+      svg.append(g);
+    }
+  }
+
+  // 援農グループ
+  for (const sg of SUPPORT_GROUPS) {
+    svg.append(s('rect', {x: SG_X, y: sg.y, width: SG_W, height: SG_H, rx: 28, fill: '#fff8e8', stroke: '#c49a3a', 'stroke-width': 1.5}));
+    svg.append(s('text', {x: SG_X + 14, y: sg.y + 22, 'font-size': 11, fill: '#5f6f63'}, '援農グループ'));
+    svg.append(s('text', {x: SG_X + 14, y: sg.y + 42, 'font-size': 13.5, 'font-weight': 700, fill: '#223b30'}, sg.name));
+  }
+
+  // 線（関係）
+  const edgeLayer = s('g', {});
+  const labelLayer = s('g', {});
+  for (const rel of RELATIONS) {
+    const sg = SUPPORT_GROUPS.find(x => x.id === rel.group);
+    const f = FARMS[rel.farm];
+    const st = REL_STATUS[rel.status];
+    const x1 = SG_X + SG_W, y1 = sg.y + SG_H / 2, x2 = FARM_X, y2 = f.y + FARM_H / 2;
+    const selected = view.edge === rel.id;
+    const dim = view.farm && view.farm !== rel.farm;
+    const g = s('g', {class: 'edge', tabindex: 0, role: 'button', 'data-edge': rel.id, 'data-status': rel.status,
+      'aria-label': `${groupName(rel.group)} と ${f.name}：${st.label}。選ぶと詳細を表示`, 'aria-pressed': String(selected),
+      style: 'cursor:pointer', opacity: dim ? 0.3 : 1});
+    g.append(s('line', {x1, y1, x2, y2, stroke: 'transparent', 'stroke-width': 18}));
+    g.append(s('line', {class: 'edge-line', x1, y1, x2, y2, stroke: st.color, 'stroke-width': selected ? st.width + 2.5 : st.width,
+      'stroke-dasharray': st.dash, 'stroke-linecap': rel.status === 'intro' ? 'round' : 'butt'}));
+    const lx = x1 + (x2 - x1) * rel.t, ly = y1 + (y2 - y1) * rel.t;
+    const text = selected ? `▶ ${st.label}` : st.label;
+    const w = text.length * 12 + 14;
+    const lg = s('g', {class: 'edge-label', 'data-edge': rel.id, opacity: dim ? 0.3 : 1, style: 'cursor:pointer'});
+    lg.append(s('rect', {x: lx - w / 2, y: ly - 11, width: w, height: 22, rx: 11, fill: '#fff', stroke: st.color, 'stroke-width': selected ? 2.5 : 1.2, 'stroke-dasharray': st.dash ? '3 2' : null}));
+    lg.append(s('text', {x: lx, y: ly + 4.5, 'text-anchor': 'middle', 'font-size': 12, 'font-weight': selected ? 700 : 600, fill: st.color}, text));
+    const pick = () => selectEdge(selected ? '' : rel.id);
+    for (const el of [g, lg]) el.addEventListener('click', pick);
+    g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
+    edgeLayer.append(g);
+    labelLayer.append(lg);
+  }
+  svg.append(edgeLayer, labelLayer);
+}
+
+function renderRelList() {
+  const list = $('relList');
+  list.replaceChildren();
+  for (const rel of RELATIONS) {
+    const st = REL_STATUS[rel.status];
+    list.append(h('li', {},
+      h('button', {type: 'button', 'data-rel-button': rel.id, 'aria-pressed': String(view.edge === rel.id), onclick: () => selectEdge(view.edge === rel.id ? '' : rel.id)},
+        `${groupName(rel.group)} ― ${FARMS[rel.farm].name}（${producerGroupOf(rel.farm).name}）：`,
+        h('span', {class: 'badge', style: `color:${st.color}`}, st.label))));
+  }
+}
+
+function acceptanceSummary(farmId) {
+  const a = (accept[view.day] || {})[farmId];
+  if (!a) return `${dayLabel(view.day)}：この農園の活動予定は記録されていません`;
+  return `${dayLabel(view.day)}：生産者の選択「${a.producer}」`;
+}
+
+function renderDetail() {
+  const box = $('detail');
+  box.replaceChildren();
+  if (view.edge) {
+    const rel = RELATIONS.find(r => r.id === view.edge);
+    const st = REL_STATUS[rel.status];
+    const pg = producerGroupOf(rel.farm);
+    const others = pg.farms.filter(f => f !== rel.farm).map(f => FARMS[f].name).join('・');
+    box.append(
+      h('h3', {}, '選んだ関係'),
+      h('p', {}, h('span', {class: 'badge', style: `color:${st.color}`}, st.label)),
+      h('dl', {},
+        h('dt', {}, '援農グループ'), h('dd', {}, groupName(rel.group)),
+        h('dt', {}, '関係する農園'), h('dd', {id: 'detailFarm'}, `${FARMS[rel.farm].name}（${pg.name}）`),
+        h('dt', {}, '活動内容'), h('dd', {}, rel.activity),
+        h('dt', {}, '直近の交流'), h('dd', {}, rel.recent),
+        h('dt', {}, '次に相談したいこと'), h('dd', {}, rel.next),
+        h('dt', {}, '選んだ活動日'), h('dd', {}, acceptanceSummary(rel.farm))),
+      h('p', {class: 'note'}, `この関係は「${FARMS[rel.farm].name}」との関係です。同じ${pg.name}の${others}との関係を意味しません。`),
+      h('p', {class: 'muted'}, `相乗りの需給を ${FARMS[rel.farm].name} に絞り込みました。`),
+      h('button', {type: 'button', onclick: () => { view.edge = ''; view.farm = ''; renderAll(); }}, '選択と絞り込みを解除'));
+    return;
+  }
+  if (view.farm) {
+    const f = FARMS[view.farm];
+    const pg = producerGroupOf(view.farm);
+    const rels = RELATIONS.filter(r => r.farm === view.farm);
+    box.append(
+      h('h3', {}, `${f.name}（${pg.name}）`),
+      h('p', {}, acceptanceSummary(view.farm)),
+      rels.length
+        ? h('ul', {}, rels.map(r => h('li', {}, `${groupName(r.group)}：${REL_STATUS[r.status].label}`)))
+        : h('p', {class: 'note', id: 'noRelNote'}, 'この農園と援農グループの関係は、まだ記録されていません。線がないことは「受け入れ不可」を意味しません。'),
+      h('p', {class: 'muted'}, `相乗りの需給を ${f.name} に絞り込みました。`),
+      h('button', {type: 'button', onclick: () => selectFarm('')}, '絞り込みを解除'));
+    return;
+  }
+  box.append(
+    h('h3', {}, '線または農園を選んでください'),
+    h('p', {class: 'muted'}, '線を選ぶと、関係する農園・活動内容・直近の交流・次に相談したいことが表示されます。農園を選ぶと、その農園への相乗り需給に絞り込みます。'));
+}
+
+/* ------------------------------------------------------------------
+ * 2. 農園の受け入れ
+ * ------------------------------------------------------------------ */
+function choiceButtons(options, current, onPick, labelPrefix, dataAttr) {
+  return options.map(opt => h('button', {type: 'button', 'aria-pressed': String(current === opt),
+    'aria-label': `${labelPrefix}：${opt}`, dataset: Object.assign({choice: opt}, dataAttr),
+    onclick: () => onPick(opt)}, opt));
+}
+
+function renderAccept() {
+  const box = $('acceptList');
+  box.replaceChildren();
+  const dayAccept = accept[view.day] || {};
+  const farmIds = Object.keys(dayAccept).filter(f => !view.farm || f === view.farm);
+  if (!farmIds.length) {
+    box.append(h('p', {class: 'note'}, view.farm
+      ? `${dayLabel(view.day)}、${FARMS[view.farm].name}の活動予定は記録されていません（受け入れ不可という意味ではありません）。`
+      : `${dayLabel(view.day)}の活動予定は記録されていません。`));
+    return;
+  }
+  for (const fid of farmIds) {
+    const a = dayAccept[fid];
+    box.append(h('div', {class: 'accept-item', 'data-accept-farm': fid},
+      h('h3', {}, `${FARMS[fid].name}（${producerGroupOf(fid).name}）`),
+      h('p', {class: 'muted'}, a.note),
+      h('div', {class: 'choice-row'},
+        h('span', {class: 'label'}, '生産者として選ぶ：', h('br'), h('strong', {'data-producer-state': fid}, a.producer)),
+        choiceButtons(PRODUCER_CHOICES, a.producer, opt => {
+          a.producer = opt; renderAll(); say(`${FARMS[fid].name}：生産者の選択を「${opt}」にしました（画面内のみ）`);
+        }, `${FARMS[fid].name}の生産者`, {producerFarm: fid})),
+      Object.entries(a.groups).map(([gid, st]) => h('div', {class: 'choice-row'},
+        h('span', {class: 'label'}, `${groupName(gid)}として選ぶ：`, h('br'), h('strong', {}, st)),
+        choiceButtons(PARTICIPANT_CHOICES, st, opt => {
+          a.groups[gid] = opt; renderAll(); say(`${groupName(gid)}：参加の選択を「${opt}」にしました（画面内のみ）`);
+        }, `${groupName(gid)}`, {participantFarm: fid, participantGroup: gid})))));
+  }
+}
+
+/* ------------------------------------------------------------------
+ * 3. 相乗りの需給
+ * ------------------------------------------------------------------ */
+function pct(n, scale) { return `${(n / scale) * 100}%`; }
+
+function renderBars(seg, scale) {
+  const w = seg.want;
+  const gap = seg.diff < 0 ? -seg.diff : 0;
+  return h('div', {class: 'bars'},
+    h('span', {}, '乗りたい人数'),
+    h('div', {class: 'track', role: 'img', 'aria-label': `乗りたい人数 ${w.total}人（移動合意あり${w.agreed}・相談中${w.talk}・希望${w.hope}）`},
+      h('span', {class: 'b-agreed', style: `width:${pct(w.agreed, scale)}`}),
+      h('span', {class: 'b-talk', style: `width:${pct(w.talk, scale)}`}),
+      h('span', {class: 'b-want', style: `width:${pct(w.hope, scale)}`})),
+    h('span', {class: 'num', 'data-want': w.total}, `${w.total}人`),
+    h('span', {}, '提供できる席数'),
+    h('div', {class: 'track', role: 'img', 'aria-label': `提供できる席数 ${seg.seatsTotal}席（合意で埋まった席${seg.seatsUsed}）${gap ? `、${gap}席不足` : ''}`},
+      h('span', {class: 'b-seat-used', style: `width:${pct(seg.seatsUsed, scale)}`}),
+      h('span', {class: 'b-seat-open', style: `width:${pct(seg.seatsTotal - seg.seatsUsed, scale)}`}),
+      gap ? h('span', {class: 'b-gap', style: `width:${pct(gap, scale)}`}) : null),
+    h('span', {class: 'num', 'data-seats': seg.seatsTotal}, `${seg.seatsTotal}席`));
+}
+
+function riderEntry(r, seg) {
+  const dupOf = seg.riderDup.get(r.id);
+  const active = RIDER_ACTIVE.includes(r.status);
+  const offer = r.offer ? offers.find(o => o.id === r.offer) : null;
+  const statusText = r.status === '合意済み' && offer ? `移動合意済み（${offer.driver} の車）` : r.status;
+  const el = h('div', {class: 'entry' + (dupOf ? ' excluded' : ''), 'data-rider': r.id},
+    h('div', {}, h('span', {class: 'who'}, `参加者 ${r.person}`), '（仮名ID・架空）　',
+      h('span', {class: 'badge', 'data-rider-status': r.status}, statusText), '　', h('small', {}, `申告 ${r.at}`)));
+  if (dupOf) {
+    el.append(h('p', {class: 'warn', 'data-dup': 'rider'},
+      `重複申告：同じ日の${seg.leg === 'out' ? '往路' : '復路'}で「${routeText(dupOf)} ${SLOT[dupOf.slot]}」に先に申告しているため、この区間では数えません。`));
+    return el;
+  }
+  const actions = h('div', {class: 'actions'});
+  const setStatus = (st, msg) => { if (st !== '合意済み') delete r.offer; r.status = st; renderAll(); say(msg); };
+  if (r.status === '合意済み') {
+    actions.append(h('button', {type: 'button', onclick: () => setStatus('相談中', `${r.person}：移動合意を取り消し、相談中に戻しました`)}, '合意を取り消して相談中へ'));
+  } else {
+    if (r.status !== '相談中') actions.append(h('button', {type: 'button', onclick: () => setStatus('相談中', `${r.person}：相談中にしました`)}, '相談する'));
+    if (r.status === '延期' || r.status === '見送り') actions.append(h('button', {type: 'button', onclick: () => setStatus('希望', `${r.person}：希望に戻しました`)}, '希望に戻す'));
+    if (active) {
+      for (const o of seg.countedOffers) {
+        const used = riders.filter(x => x.offer === o.id && x.status === '合意済み').length;
+        const left = freeSeats(o) - used;
+        actions.append(h('button', {type: 'button', 'data-agree-offer': o.id, disabled: left <= 0 ? true : null,
+          title: left <= 0 ? 'この車の空席はすべて合意済みです' : null,
+          onclick: () => { r.offer = o.id; setStatus('合意済み', `${r.person} と ${o.driver}：移動合意を記録しました（画面内のみ・送信なし）`); }},
+          left > 0 ? `${o.driver} の車で合意を記録（残り${left}席）` : `${o.driver} の車は合意で満席`));
+      }
+    }
+  }
+  if (r.status !== '延期') actions.append(h('button', {type: 'button', onclick: () => setStatus('延期', `${r.person}：延期にしました。この区間の人数から外します`)}, '延期'));
+  if (r.status !== '見送り') actions.append(h('button', {type: 'button', onclick: () => setStatus('見送り', `${r.person}：見送りにしました。この区間の人数から外します`)}, '見送り'));
+  el.append(actions);
+  return el;
+}
+
+function offerEntry(o, seg) {
+  const dupOf = seg.offerDup.get(o.id);
+  const used = riders.filter(x => x.offer === o.id && x.status === '合意済み').length;
+  const el = h('div', {class: 'entry' + (dupOf ? ' excluded' : ''), 'data-offer': o.id},
+    h('div', {}, h('span', {class: 'who'}, `運転者 ${o.driver}`), '（仮名ID・架空）　',
+      h('span', {class: 'badge', 'data-offer-status': o.status}, o.status), '　', h('small', {}, `申告 ${o.at}`)),
+    h('div', {class: 'breakdown', 'data-seat-calc': o.id},
+      `定員${o.capacity} − 運転者1 − 既存の同乗者${o.existing} ＝ 空席${freeSeats(o)}　／　合意で埋まった席 ${used}`));
+  if (dupOf) {
+    el.append(h('p', {class: 'warn', 'data-dup': 'offer'},
+      `重複申告：同じ日の${seg.leg === 'out' ? '往路' : '復路'}で「${routeText(dupOf)} ${SLOT[dupOf.slot]}」に先に申告しているため、この区間の席には数えません。`));
+    return el;
+  }
+  const releaseRiders = () => riders.filter(x => x.offer === o.id).forEach(x => { x.status = '相談中'; delete x.offer; });
+  const setStatus = (st, msg) => { if (!OFFER_ACTIVE.includes(st)) releaseRiders(); o.status = st; renderAll(); say(msg); };
+  const actions = h('div', {class: 'actions'});
+  if (o.status !== '相談中') actions.append(h('button', {type: 'button', onclick: () => setStatus('相談中', `${o.driver}：相談中にしました`)}, '相談する'));
+  if (o.status === '延期' || o.status === '見送り') actions.append(h('button', {type: 'button', onclick: () => setStatus('提供申告', `${o.driver}：提供申告に戻しました`)}, '提供申告に戻す'));
+  if (o.status !== '延期') actions.append(h('button', {type: 'button', onclick: () => setStatus('延期', `${o.driver}：延期にしました。この車との移動合意は相談中に戻ります`)}, '延期'));
+  if (o.status !== '見送り') actions.append(h('button', {type: 'button', onclick: () => setStatus('見送り', `${o.driver}：見送りにしました。この車との移動合意は相談中に戻ります`)}, '見送り'));
+  el.append(actions);
+  return el;
+}
+
+function renderSegment(seg, scale) {
+  const a = (accept[seg.day] || {})[seg.farm];
+  const acceptText = a ? `生産者「${a.producer}」` : 'この日の活動予定の記録なし';
+  const acceptWarn = !a || a.producer !== '受け入れ合意';
+  const card = h('article', {class: 'seg', 'data-seg': seg.key, 'data-leg': seg.leg, 'data-farm': seg.farm, 'data-kind': seg.kind},
+    h('header', {},
+      h('div', {},
+        h('div', {class: 'route'}, routeText(seg)),
+        h('small', {}, `${dayLabel(seg.day)}　${SLOT[seg.slot]}発　${seg.leg === 'out' ? '往路' : '復路'}`)),
+      h('div', {class: `verdict ${seg.kind}`, 'data-verdict': true}, seg.verdict)),
+    renderBars(seg, scale),
+    h('div', {class: 'breakdown'},
+      `乗りたい人数の内訳：移動合意あり ${seg.want.agreed}・相談中 ${seg.want.talk}・希望 ${seg.want.hope}`,
+      h('br'),
+      `提供席の内訳：${seg.countedOffers.map(o => `${o.driver}（${o.status}）${freeSeats(o)}席`).join('、') || 'なし'}`),
+    h('div', {class: 'agree-lines'},
+      h('div', {'data-accept-line': true}, h('strong', {}, '農園の受け入れ合意：'), acceptText),
+      h('div', {'data-ride-line': true}, h('strong', {}, '運転者・同乗者の移動合意：'),
+        `${seg.want.agreed}人 ／ 乗りたい ${seg.want.total}人`)),
+    acceptWarn ? h('p', {class: 'muted'}, '農園の受け入れが合意されていない間は、移動の合意があっても活動の実施を意味しません。') : null);
+  const details = h('details', {class: 'entries'},
+    h('summary', {}, `申告を見る・相談／延期／見送りを選ぶ（参加者 ${seg.riders.length}件・運転者 ${seg.offers.length}件）`),
+    h('h3', {}, '乗りたい人'),
+    seg.riders.length ? seg.riders.map(r => riderEntry(r, seg)) : h('p', {class: 'muted'}, '申告はありません'),
+    h('h3', {}, '席を提供できる人'),
+    seg.offers.length ? seg.offers.map(o => offerEntry(o, seg)) : h('p', {class: 'muted'}, '申告はありません'));
+  if (openSegments.has(seg.key)) details.open = true;
+  details.addEventListener('toggle', () => details.open ? openSegments.add(seg.key) : openSegments.delete(seg.key));
+  card.append(details);
+  return card;
+}
+
+const openSegments = new Set();
+
+function renderRides() {
+  const segs = computeSegments().filter(seg => !view.farm || seg.farm === view.farm);
+  const scale = Math.max(1, ...segs.map(seg => Math.max(seg.want.total, seg.seatsTotal)));
+  for (const [leg, boxId, secId] of [['out', 'segOut', 'legOut'], ['ret', 'segRet', 'legRet']]) {
+    const show = view.leg === 'both' || view.leg === leg;
+    $(secId).classList.toggle('hidden', !show);
+    const box = $(boxId);
+    box.replaceChildren();
+    const list = segs.filter(seg => seg.leg === leg);
+    if (!list.length) box.append(h('p', {class: 'muted'}, 'この条件の区間はありません。'));
+    for (const seg of list) box.append(renderSegment(seg, scale));
+  }
+  const visible = segs.filter(seg => view.leg === 'both' || seg.leg === view.leg);
+  const count = k => visible.filter(seg => seg.kind === k).length;
+  $('rideSummary').textContent =
+    `表示中の区間 ${visible.length}件：不足 ${count('short')}件／余裕 ${count('spare')}件／数量上一致 ${count('even')}件。区間どうしで余裕席と不足席を相殺した合計は出しません。`;
+}
+
+/* ------------------------------------------------------------------
+ * 連動
+ * ------------------------------------------------------------------ */
+function selectFarm(fid) {
+  view.farm = fid;
+  if (view.edge && RELATIONS.find(r => r.id === view.edge).farm !== fid) view.edge = '';
+  renderAll();
+}
+function selectEdge(eid) {
+  view.edge = eid;
+  view.farm = eid ? RELATIONS.find(r => r.id === eid).farm : '';
+  renderAll();
+}
+
+function renderControls() {
+  const day = $('daySelect');
+  if (!day.options.length) for (const d of DAYS) day.append(h('option', {value: d.id}, d.label));
+  day.value = view.day;
+  const farm = $('farmSelect');
+  if (!farm.options.length) {
+    farm.append(h('option', {value: ''}, 'すべての農園'));
+    for (const pg of PRODUCER_GROUPS) {
+      const og = h('optgroup', {label: pg.name});
+      for (const fid of pg.farms) og.append(h('option', {value: fid}, FARMS[fid].name));
+      farm.append(og);
+    }
+  }
+  farm.value = view.farm;
+  $('legSelect').value = view.leg;
+  $('filterStatus').textContent = `${dayLabel(view.day)}／${view.farm ? FARMS[view.farm].name + 'に絞り込み中' : 'すべての農園'}／${$('legSelect').selectedOptions[0].textContent}`;
+}
+
+function renderAll() {
+  renderControls();
+  renderMap();
+  renderRelList();
+  renderDetail();
+  renderAccept();
+  renderRides();
+}
+
+$('daySelect').addEventListener('change', e => { view.day = e.target.value; renderAll(); });
+$('farmSelect').addEventListener('change', e => selectFarm(e.target.value));
+$('legSelect').addEventListener('change', e => { view.leg = e.target.value; renderAll(); });
+$('reset').addEventListener('click', () => {
+  resetData();
+  Object.assign(view, {day: 'd1', farm: '', leg: 'both', edge: ''});
+  openSegments.clear();
+  renderAll();
+  say('最初の状態に戻しました');
+});
+
+resetData();
+renderAll();
+</script>
+</body>
+</html>

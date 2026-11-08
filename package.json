@@ -4,7 +4,7 @@
   "private": true,
   "description": "農園販売の操作体験デモとブラウザテスト",
   "scripts": {
-    "test": "node test.cjs && node test-v07.cjs"
+    "test": "node test.cjs && node test-v07.cjs && node test-gobear.cjs"
   },
   "devDependencies": {
     "playwright": "1.62.1"
