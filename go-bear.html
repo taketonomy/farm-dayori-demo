@@ -588,6 +588,7 @@ function renderGeo() {
   const segs = computeSegments();
   const usedHubs = HUBS.filter(hb => hb === HUB || segs.some(x => x.hub === hb));
   const mySeg = isHelper() ? segs.find(x => x.leg === 'out' && hasMine(x) && x.farm === journeyFarm()) : null;
+  const labels = [];
   for (const fid of Object.keys(FARMS)) {
     const p = GEO[fid];
     const fs = segs.filter(x => x.farm === fid);
@@ -599,11 +600,7 @@ function renderGeo() {
       const outN = hs.filter(x => x.leg === 'out').length, retN = hs.filter(x => x.leg === 'ret').length;
       const shortN = hs.filter(x => x.kind === 'short').length;
       svg.append(s('line', {x1: hub.x + 36, y1: hub.y, x2: p.x - 70, y2: p.y, stroke: selected ? '#2f6b3f' : '#7d8f7c', 'stroke-width': selected ? 4 : 2.5, 'stroke-dasharray': '10 6', 'data-geo-route': fid, 'data-geo-hub-route': hb}));
-      const mx = hub.x + 36 + (p.x - 70 - hub.x - 36) * 0.45, my = hub.y + (p.y - hub.y) * 0.45;
-      const label = `行き${outN}・帰り${retN}便` + (shortN ? `・不足${shortN}` : '');
-      const w = label.length * 11.5 + 14;
-      svg.append(s('rect', {x: mx - w / 2, y: my - 12, width: w, height: 22, rx: 11, fill: '#fff', stroke: shortN ? '#9b3d1c' : '#7d8f7c'}));
-      svg.append(s('text', {x: mx, y: my + 4, 'text-anchor': 'middle', 'font-size': 11.5, fill: shortN ? '#9b3d1c' : '#223b30', 'data-geo-label': fid}, label));
+      labels.push({hb, fid, y: p.y, text: `→${FARMS[fid].name}　行き${outN}・帰り${retN}便` + (shortN ? `（不足${shortN}）` : ''), short: shortN > 0});
     }
     const g = s('g', {class: 'geo-farm', tabindex: 0, role: 'button', 'data-geo-farm': fid, 'aria-pressed': String(selected),
       'aria-label': `${FARMS[fid].name}を選んで需給を絞り込む`, opacity: fs.length ? 1 : 0.55});
@@ -615,13 +612,25 @@ function renderGeo() {
     g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
     svg.append(g);
   }
+  // 行き先つきのラベルを、各駅の右にまとめて並べる（線の上には置かない）
+  for (const hb of usedHubs) {
+    const hub = GEO.hubs[hb];
+    const ls = labels.filter(l => l.hb === hb).sort((a, b) => a.y - b.y);
+    ls.forEach((l, i) => {
+      const y = hub.y + (i - (ls.length - 1) / 2) * 26;
+      const w = l.text.length * 11.5 + 14;
+      svg.append(s('rect', {x: hub.x + 42, y: y - 12, width: w, height: 22, rx: 11, fill: '#fff', stroke: l.short ? '#9b3d1c' : '#7d8f7c'}));
+      svg.append(s('text', {x: hub.x + 49, y: y + 4, 'font-size': 11.5, fill: l.short ? '#9b3d1c' : '#223b30', 'data-geo-label': l.fid}, l.text));
+    });
+  }
   for (const hb of usedHubs) {
     const hub = GEO.hubs[hb];
     const mine = mySeg && mySeg.hub === hb;
     svg.append(s('circle', {cx: hub.x, cy: hub.y, r: 36, fill: '#fff8e8', stroke: '#c49a3a', 'stroke-width': mine ? 5 : 2}));
     svg.append(s('text', {x: hub.x, y: hub.y - 3, 'text-anchor': 'middle', 'font-size': 13, 'font-weight': 700, fill: '#223b30', 'data-geo-hub': hb}, hb));
-    svg.append(s('text', {x: hub.x, y: hub.y + 13, 'text-anchor': 'middle', 'font-size': 10, fill: '#5f6f63'}, '集合場所の候補'));
-    if (mine) svg.append(s('text', {x: hub.x, y: hub.y - 44, 'text-anchor': 'middle', 'font-size': 12, 'font-weight': 700, fill: '#b35c00', 'data-geo-mine': 'true'}, `あなた（${PERSONA.person}）の集合場所`));
+    svg.append(mine
+      ? s('text', {x: hub.x, y: hub.y + 14, 'text-anchor': 'middle', 'font-size': 10.5, 'font-weight': 700, fill: '#b35c00', 'data-geo-mine': 'true'}, 'あなたの集合場所')
+      : s('text', {x: hub.x, y: hub.y + 13, 'text-anchor': 'middle', 'font-size': 10, fill: '#5f6f63'}, '集合場所の候補'));
   }
 }
 
