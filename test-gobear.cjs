@@ -282,7 +282,10 @@ const HTML = fs.readFileSync(__dirname + '/go-bear.html', 'utf8');
     assert.equal(await page.locator('[data-geo-route="f1"]').count(), 2);
     assert.equal(await page.locator('[data-geo-route="f2"]').count(), 1);
     assert.equal(await page.locator('[data-geo-route="f5"]').count(), 0);
-    assert((await page.locator('[data-geo-label="f1"]').first().textContent()).includes('不足'));
+    assert((await page.locator('[data-geo-label="f1"]').first().textContent()).includes('乗れる席あり'));
+    // 相乗りする人には「〇席不足」を見せず、運転者ごとの乗れる席を見せる
+    assert.equal(await page.locator('[data-my-seg] .verdict').count(), 0);
+    assert.equal(await page.locator('[data-seat-summary="d1|out|里山駅|f1|a"]').innerText(), '乗れる席：D-01（里山駅集合）残り3席・D-05（もみじ台駅集合）残り2席');
     assert.equal(await page.locator('[data-geo-mine]').count(), 1);
     await page.click('g.geo-farm[data-geo-farm="f2"]');
     const farms = await page.locator('[data-seg]').evaluateAll(els => [...new Set(els.map(e => e.dataset.farm))]);

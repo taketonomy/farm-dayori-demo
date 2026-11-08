@@ -127,6 +127,9 @@ button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
 .arrivals td:first-child,.arrivals th:first-child{white-space:nowrap}
 .conflict{font-size:13px;font-weight:700;color:var(--warn)}
 .tagline{margin:2px 0 10px;font-size:17px;font-weight:700}
+.seat-summary{margin:8px 0;font-size:15px;font-weight:700}
+.seat-summary.agreed{color:var(--ok)}
+.seat-summary.full{color:var(--warn)}
 .hidden{display:none!important}
 footer{font-size:13px;color:var(--muted);margin:20px 0 40px}
 </style>
@@ -234,7 +237,7 @@ footer{font-size:13px;color:var(--muted);margin:20px 0 40px}
   </section>
 
   <footer>
-    2026.11.08 Claude Code で新規追加（go-bear.html）／既存の畑だより v0.7（farm-demo.html・2026.11.04 Codex 実装）は変更していません／オフラインで動作・外部通信なし
+    2026.11.08 Claude Code で新規作成／オフラインで動作・外部通信なし
   </footer>
 </main>
 <div id="toast" role="status" class="hidden"></div>
@@ -602,7 +605,10 @@ function renderGeo() {
       svg.append(s('line', {x1: hub.x + 36, y1: hub.y, x2: p.x - 70, y2: p.y, stroke: selected ? '#2f6b3f' : '#7d8f7c', 'stroke-width': selected ? 4 : 2.5, 'stroke-dasharray': '10 6', 'data-geo-route': fid, 'data-geo-hub-route': hb}));
       // ラベルは 🐻 P-01 自身の便だけに付ける（全体の集計は出さない）
       for (const x of hs.filter(hasMine)) {
-        labels.push({hb, fid, y: p.y + (x.leg === 'ret' ? 1 : 0), text: `🐻 あなたの${x.leg === 'out' ? '行き' : '帰り'} ${SLOT[x.slot].split('〜')[0]}発：${x.verdict}`, short: x.kind === 'short'});
+        const r = x.riders.find(y => y.person === PERSONA.person);
+        const sum = seatSummary(r);
+        const tail = sum.kind === 'agreed' ? `${offers.find(o => o.id === r.offer).driver} の車で記録済み` : sum.kind === 'open' ? '乗れる席あり' : sum.kind === 'full' ? '空いている席なし' : r.status;
+        labels.push({hb, fid, y: p.y + (x.leg === 'ret' ? 1 : 0), text: `🐻 あなたの${x.leg === 'out' ? '行き' : '帰り'} ${SLOT[x.slot].split('〜')[0]}発：${tail}`, short: sum.kind === 'full'});
       }
     }
     const g = s('g', {class: 'geo-farm', tabindex: 0, role: 'button', 'data-geo-farm': fid, 'aria-pressed': String(selected),
@@ -922,6 +928,19 @@ function bookedFarm(day) {
   }
   return '';
 }
+/* 乗る人にとっての「乗れる席」：同じ日・向き・農園・時間帯の運転者ごとの残り席（集合場所つき） */
+function seatOptions(r) {
+  const dup = markDuplicates(offers, 'driver');
+  return offers.filter(o => o.day === r.day && o.leg === r.leg && o.farm === r.farm && o.slot === r.slot && OFFER_ACTIVE.includes(o.status) && !dup.has(o.id))
+    .map(o => ({o, left: freeSeats(o) - riders.filter(x => x.offer === o.id && x.status === '合意済み').length}));
+}
+function seatSummary(r) {
+  if (r.status === '合意済み' && r.offer) return {kind: 'agreed', text: `${offers.find(o => o.id === r.offer).driver} の車で合意を記録済み（${r.person} 側の記録）`};
+  if (!RIDER_ACTIVE.includes(r.status)) return {kind: 'none', text: `この便は「${r.status}」にしています`};
+  const opts = seatOptions(r).filter(x => x.left > 0);
+  if (!opts.length) return {kind: 'full', text: 'いま空いている席はありません。ほかの方法も検討してください'};
+  return {kind: 'open', text: '乗れる席：' + opts.map(x => `${x.o.driver}（${x.o.hub}集合）残り${x.left}席`).join('・')};
+}
 function journeyFarm() {
   const farms = Object.keys(accept[view.day] || {});
   // 畑は利用者が選ぶまで決めない（初期の自動選択はしない）
@@ -980,14 +999,13 @@ function renderJourney() {
   if (!mine.length) {
     box.append(h('p', {class: 'muted', 'data-no-mine': 'true'}, `${FARMS[fid].name}への便には、まだ申し込んでいません（このデモでは新しい申し込みはできません）`));
   } else {
-    const scale = Math.max(1, ...mine.map(x => Math.max(x.want.total, x.seatsTotal)));
     for (const seg of mine) {
       const r = seg.riders.find(x => x.person === PERSONA.person);
+      const sum = seatSummary(r);
       box.append(h('article', {class: 'seg my-ride', 'data-my-seg': seg.key},
         h('header', {},
-          h('div', {}, h('div', {class: 'route'}, `${seg.leg === 'out' ? '行き' : '帰り'}：${routeText(seg)}`), h('small', {}, `${SLOT[seg.slot]}発`)),
-          h('div', {class: `verdict ${seg.kind}`}, seg.verdict)),
-        renderBars(seg, scale),
+          h('div', {}, h('div', {class: 'route'}, `${seg.leg === 'out' ? '行き' : '帰り'}：${routeText(seg)}`), h('small', {}, `${SLOT[seg.slot]}発`))),
+        h('p', {class: `seat-summary ${sum.kind}`, 'data-seat-summary': seg.key}, sum.text),
         riderEntry(r, seg)));
     }
   }
