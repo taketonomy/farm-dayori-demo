@@ -122,6 +122,9 @@ button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
 .recruit{font-size:14px;font-weight:700}
 .orders{border-collapse:collapse;width:100%;font-size:14px}
 .orders th,.orders td{border-bottom:1px solid var(--line);padding:6px 4px;text-align:left}
+.attend-form{margin-top:12px;padding:10px;border:1px dashed var(--line);border-radius:10px}
+.arrivals{font-size:13px}
+.arrivals td:first-child,.arrivals th:first-child{white-space:nowrap}
 .hidden{display:none!important}
 footer{font-size:13px;color:var(--muted);margin:20px 0 40px}
 </style>
@@ -307,6 +310,26 @@ const ACCEPT_INIT = {
   },
 };
 
+/* 来る時間・帰る時間の申告（活動日 × 農園 × 仮名ID）。架空データ。
+   at は申告した日時。連絡の目安（2日前）より後でも受け付ける */
+const MODES = ['相乗り', '自転車', '徒歩', 'バス', 'その他'];
+const ARRIVE_TIMES = ['9:00', '9:30', '10:00', '10:30', '11:00'];
+const LEAVE_TIMES = ['12:00', '13:00', '14:00', '15:00', '16:00'];
+const ATTEND_INIT = {
+  d1: {
+    f1: {
+      'P-02': {arrive: '9:30', leave: '15:00', mode: '相乗り', at: '11/06 09:00'},
+      'P-04': {arrive: '9:30', leave: '15:00', mode: '相乗り', at: '11/07 20:10'},
+      'P-08': {arrive: '10:30', leave: '15:00', mode: 'バス', at: '11/20 07:45'},
+      'P-09': {arrive: '10:00', leave: '14:00', mode: '自転車', at: '11/08 12:00'},
+    },
+    f2: {
+      'P-06': {arrive: '9:30', leave: '15:00', mode: '相乗り', at: '11/06 18:00'},
+    },
+  },
+  d2: {},
+};
+
 /* 相乗り：一人ずつ・一台ずつの申告として持つ（集計値は持たない） */
 const RIDER_ACTIVE = ['希望', '相談中', '合意済み'];
 const OFFER_ACTIVE = ['提供申告', '相談中'];
@@ -363,10 +386,11 @@ const OFFERS_INIT = [
  * 状態
  * ------------------------------------------------------------------ */
 const clone = x => JSON.parse(JSON.stringify(x));
-let accept, riders, offers;
+let accept, riders, offers, attend;
 const view = {role: 'helper', day: 'd1', farm: '', leg: 'both', edge: '', producerFarm: 'f1'};
 function resetData() {
   accept = clone(ACCEPT_INIT);
+  attend = clone(ATTEND_INIT);
   riders = clone(RIDERS_INIT);
   offers = clone(OFFERS_INIT);
 }
@@ -940,26 +964,52 @@ function renderJourney() {
     a && (a.producer === '延期' || a.producer === '見送り') ? h('p', {class: 'warn', 'data-recheck': 'true'}, RECHECK) : null,
     h('div', {}, h('strong', {}, '移動の合意：'), mine.length ? `${agreed} / ${mine.length} 便を記録（あなたの側の記録）` : 'なし'),
     h('small', {class: 'muted'}, '受け入れと移動の合意は別々です。延期になっても自動の通知・再調整はありません。')));
+
+  // ④ 来る時間・帰る時間を伝える（P-01 の申告。画面内の反映のみ）
+  const day = DAYS.find(d => d.id === view.day);
+  const prev = ((attend[view.day] || {})[fid] || {})[PERSONA.person];
+  const mk = (id, opts, val) => h('select', {id}, opts.map(o => h('option', {value: o, selected: o === val ? true : null}, o)));
+  const arr = mk('attendArrive', ARRIVE_TIMES, prev ? prev.arrive : '9:30');
+  const lv = mk('attendLeave', LEAVE_TIMES, prev ? prev.leave : '15:00');
+  const md = mk('attendMode', MODES, prev ? prev.mode : '相乗り');
+  box.append(h('form', {class: 'recruit-form attend-form', 'data-attend-form': fid, onsubmit: e => {
+      e.preventDefault();
+      attend[view.day] = attend[view.day] || {};
+      attend[view.day][fid] = attend[view.day][fid] || {};
+      const before = attend[view.day][fid][PERSONA.person];
+      attend[view.day][fid][PERSONA.person] = {arrive: arr.value, leave: lv.value, mode: md.value, at: 'デモ画面で入力', changed: !!before};
+      renderAll();
+      say('生産者の画面に反映しました（この画面の中だけ。通知・保存・送信はしていません）');
+    }},
+    h('strong', {}, `来る時間・帰る時間を伝える（目安：${day.notice}・活動日の2日前まで）`),
+    prev ? h('small', {'data-attend-mine': 'true'}, `伝えた内容：${prev.arrive}着・${prev.leave}発・${prev.mode}`) : h('small', {'data-attend-mine': 'true'}, 'まだ伝えていません'),
+    h('label', {for: 'attendArrive'}, '畑に着く時間'), arr,
+    h('label', {for: 'attendLeave'}, '畑を出る時間'), lv,
+    h('label', {for: 'attendMode'}, '来る方法'), md,
+    h('p', {}, h('button', {class: 'primary', type: 'submit'}, prev ? '変更を伝える' : '伝える')),
+    h('small', {class: 'muted'}, 'この画面の中で生産者の画面に反映するだけです。通知・保存はしません。')));
 }
 
 function arrivalRows(fid) {
-  // 相乗りの申し込みから分かる範囲だけ：参加予定者（仮名ID）ごとの到着便・出発便
+  // 申告（来る時間・帰る時間）を軸に、相乗りの便は参考として並べる
+  const decl = (attend[view.day] || {})[fid] || {};
   const segs = computeSegments().filter(x => x.farm === fid);
   const people = new Map();
+  const get = p => people.get(p) || people.set(p, {person: p}).get(p);
+  for (const [p, d] of Object.entries(decl)) get(p).decl = d;
   for (const seg of segs) for (const r of seg.riders) {
     if (seg.riderDup.has(r.id)) continue;
-    const row = people.get(r.person) || {person: r.person};
-    row[seg.leg] = {slot: SLOT[seg.slot], status: r.status, at: r.at};
-    people.set(r.person, row);
+    get(r.person)[seg.leg] = {slot: SLOT[seg.slot], status: r.status};
   }
   return [...people.values()].sort((a, b) => a.person.localeCompare(b.person));
 }
-function arrivalState(row) {
-  const changed = ['out', 'ret'].map(k => row[k]).filter(x => x && (x.status === '延期' || x.status === '見送り'));
-  if (changed.length) return `変更あり（${changed.map(x => x.status).join('・')}）`;
-  if (!row.out) return '行きが未連絡';
-  if (!row.ret) return '帰りが未連絡';
-  return '連絡あり';
+function arrivalState(row, notice) {
+  const rideChanged = ['out', 'ret'].map(k => row[k]).filter(x => x && (x.status === '延期' || x.status === '見送り'));
+  if (rideChanged.length) return `相乗りに変更あり（${rideChanged.map(x => x.status).join('・')}）`;
+  if (!row.decl) return '未申告';
+  if (row.decl.changed) return '変更あり';
+  if (/^\d\d\/\d\d/.test(row.decl.at) && row.decl.at.slice(0, 5) > notice) return '目安より後（受け付け済み）';
+  return '申告済み';
 }
 
 function renderProducerHome(box) {
@@ -1021,13 +1071,14 @@ function renderProducerHome(box) {
   }
 
   // ④ 来る時間・帰る時間
-  box.append(stepTitle(4, '来る時間・帰る時間'));
-  box.append(h('p', {class: 'muted'}, `連絡の目安：${day.notice}（活動日の2日前）まで。遅れた連絡も自動では断りません。相乗りの申し込みから分かる範囲だけを表示しています。相乗りを使わない人の時間は、このデモでは分かりません。`));
+  box.append(stepTitle(4, '誰がいつ来て、いつ帰るか'));
+  box.append(h('p', {class: 'muted'}, `連絡の目安：${day.notice}（活動日の2日前）まで。遅れた連絡も自動では断りません。表示しているのは、この画面に申告された内容と相乗りの申し込みだけです（架空データ・通知や保存はなし）。`));
   const rows = arrivalRows(fid);
   box.append(rows.length ? h('table', {class: 'orders arrivals', 'data-arrivals': fid},
-    h('thead', {}, h('tr', {}, h('th', {}, '参加予定（仮名ID）'), h('th', {}, '来る（行きの便）'), h('th', {}, '帰る（帰りの便）'), h('th', {}, '状態'))),
+    h('thead', {}, h('tr', {}, h('th', {}, '仮名ID'), h('th', {}, '畑に着く'), h('th', {}, '畑を出る'), h('th', {}, '来る方法'), h('th', {}, '駅を出る便（参考）'), h('th', {}, '状態'))),
     h('tbody', {}, rows.map(r => h('tr', {'data-arrival': r.person},
-      h('td', {}, r.person), h('td', {}, r.out ? r.out.slot : '未連絡'), h('td', {}, r.ret ? r.ret.slot : '未連絡'), h('td', {}, arrivalState(r))))))
+      h('td', {}, r.person), h('td', {}, r.decl ? r.decl.arrive : '—'), h('td', {}, r.decl ? r.decl.leave : '—'), h('td', {}, r.decl ? r.decl.mode : '—'),
+      h('td', {}, `行き ${r.out ? r.out.slot.split('〜')[0] + '発' : 'なし'}／帰り ${r.ret ? r.ret.slot.split('〜')[0] + '発' : 'なし'}`), h('td', {}, arrivalState(r, day.notice))))))
     : h('p', {class: 'muted'}, '相乗りの申し込みはありません'));
 }
 

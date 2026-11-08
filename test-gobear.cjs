@@ -337,8 +337,8 @@ const HTML = fs.readFileSync(__dirname + '/go-bear.html', 'utf8');
     await page.selectOption('#roleSelect', 'producer');
     await page.selectOption('#producerFarm', 'f1');
     assert.equal(await page.locator('[data-producer-leg="ret"] li').count(), 1);
-    assert((await page.locator('[data-arrival="P-01"]').innerText()).includes('9:00〜9:30'));
-    assert((await page.locator('[data-arrival="P-03"]').innerText()).includes('帰りが未連絡'));
+    assert((await page.locator('[data-arrival="P-01"]').innerText()).includes('行き 9:00発'));
+    assert((await page.locator('[data-arrival="P-03"]').innerText()).includes('未申告'));
     await page.locator('[data-producer-home="f1"] [data-home-choice="延期"]').click();
     assert.equal(await page.locator('[data-producer-home="f1"] [data-recheck]').count(), 1);
     // 援農者：受け入れは「延期」と表示（「未決定」ではない）、相談中の記録は残る
@@ -352,6 +352,32 @@ const HTML = fs.readFileSync(__dirname + '/go-bear.html', 'utf8');
     await page.locator('[data-producer-home="f1"] [data-home-choice="見送り"]').click();
     await page.selectOption('#roleSelect', 'helper');
     assert.equal(await page.locator('[data-journey-farm="f1"] [data-accept-badge]').innerText(), '受け入れ：見送り');
+    await page.close();
+  });
+
+  await test('誰がいつ来て、いつ帰るか：P-01 の申告が生産者の表に反映し、未申告・相乗りなし・目安より後・変更を区別する', async () => {
+    const page = await fresh({width: 1200, height: 1000}, {openDetails: false});
+    // 援農者 P-01：こもれび農園に 10:00 着・14:00 発・自転車で伝える
+    assert.equal(await page.locator('[data-attend-mine]').innerText(), 'まだ伝えていません');
+    await page.selectOption('#attendArrive', '10:00');
+    await page.selectOption('#attendLeave', '14:00');
+    await page.selectOption('#attendMode', '自転車');
+    await page.click('[data-attend-form="f1"] button[type="submit"]');
+    assert((await page.locator('#toast').innerText()).includes('通知・保存・送信はしていません'));
+    await page.selectOption('#roleSelect', 'producer');
+    await page.selectOption('#producerFarm', 'f1');
+    const row = t => page.locator(`[data-arrival="${t}"]`).innerText();
+    const p01 = await row('P-01');
+    assert(p01.includes('10:00') && p01.includes('14:00') && p01.includes('自転車') && p01.includes('申告済み'));
+    assert((await row('P-03')).includes('未申告'));
+    assert((await row('P-09')).includes('自転車') && (await row('P-09')).includes('行き なし'));
+    assert((await row('P-08')).includes('目安より後（受け付け済み）'));
+    // 変更を伝えると「変更あり」
+    await page.selectOption('#roleSelect', 'helper');
+    await page.selectOption('#attendLeave', '15:00');
+    await page.click('[data-attend-form="f1"] button[type="submit"]');
+    await page.selectOption('#roleSelect', 'producer');
+    assert((await row('P-01')).includes('変更あり'));
     await page.close();
   });
 
