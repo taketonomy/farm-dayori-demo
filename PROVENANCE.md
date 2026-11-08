@@ -18,7 +18,7 @@ Go Bear to Farm! の作業では、`farm-demo.html`、仕様書、既存テス�
 | ファイル | 制作ツール | 時期 | 内容 |
 |---|---|---|---|
 | `go-bear.html` | Claude Code | 2026-11-08（JST 15時台） | 援農グループと生産者グループの関係図、活動日ごとの農園の受け入れ、駅・バス停から畑までの相乗り需給 |
-| `test-gobear.cjs` | Claude Code | 2026-11-08 | 上記の確認テスト16項目（Playwright） |
+| `test-gobear.cjs` | Claude Code | 2026-11-08 | 上記の確認テスト23項目（Playwright） |
 | `PROVENANCE.md` | Claude Code | 2026-11-08 | この制作記録 |
 | `scripts/make-local.cjs`・`scripts/check-public.cjs` | Claude Code | 2026-11-08 | 開発用の名称差し替えと、公開ファイルに差し替え後の名称がないことの確認 |
 | `VERIFICATION.md` | Claude Code | 2026-11-08（JST 15時台） | 実画面での通し確認・テスト結果・未確認事項の記録 |
