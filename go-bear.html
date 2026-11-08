@@ -113,6 +113,15 @@ details.entries summary{cursor:pointer;color:var(--accent);font-weight:600}
 .farm-card .call{font-size:14px}
 .my-ride{border:2px solid #e6c48a}
 .status-lines{display:grid;gap:4px;font-size:15px}
+.acting{background:#fff4d6;border:1px solid #e3c675;border-radius:10px;padding:10px 12px;margin-bottom:8px}
+.acting label{display:block;font-size:13px;color:var(--muted)}
+.acting-now{margin:6px 0 0;font-weight:700}
+.recruit-form{display:grid;gap:4px;max-width:420px}
+.recruit-form input{font:inherit;padding:6px 8px;border:1px solid #9fb09e;border-radius:8px;min-height:36px}
+button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.recruit{font-size:14px;font-weight:700}
+.orders{border-collapse:collapse;width:100%;font-size:14px}
+.orders th,.orders td{border-bottom:1px solid var(--line);padding:6px 4px;text-align:left}
 .hidden{display:none!important}
 footer{font-size:13px;color:var(--muted);margin:20px 0 40px}
 </style>
@@ -230,8 +239,8 @@ footer{font-size:13px;color:var(--muted);margin:20px 0 40px}
  * 架空データ
  * ------------------------------------------------------------------ */
 const DAYS = [
-  {id: 'd1', label: '11月21日（土）'},
-  {id: 'd2', label: '11月28日（土）'},
+  {id: 'd1', label: '11月21日（土）', notice: '11/19'},
+  {id: 'd2', label: '11月28日（土）', notice: '11/26'},
 ];
 
 const SUPPORT_GROUPS = [
@@ -355,7 +364,7 @@ const OFFERS_INIT = [
  * ------------------------------------------------------------------ */
 const clone = x => JSON.parse(JSON.stringify(x));
 let accept, riders, offers;
-const view = {role: 'helper', day: 'd1', farm: '', leg: 'both', edge: ''};
+const view = {role: 'helper', day: 'd1', farm: '', leg: 'both', edge: '', producerFarm: 'f1'};
 function resetData() {
   accept = clone(ACCEPT_INIT);
   riders = clone(RIDERS_INIT);
@@ -765,7 +774,7 @@ function renderSegment(seg, scale) {
     renderBars(seg, scale),
     h('div', {class: 'agree-lines'},
       h('div', {'data-accept-line': true}, h('strong', {}, '農園の受け入れ：'), acceptText,
-        acceptWarn ? h('span', {class: 'pending', title: '受け入れが決まるまで、移動の合意は活動の実施を意味しません'}, '未決定') : null),
+        acceptWarn ? h('span', {class: 'pending', title: '受け入れが決まるまで、移動の合意は活動の実施を意味しません'}, a ? ({'相談中': '未決定', '延期': '延期', '見送り': '見送り'})[a.producer] : '予定なし') : null),
       h('div', {'data-ride-line': true}, h('strong', {}, '移動の合意：'),
         `${seg.want.agreed}人 ／ 乗りたい ${seg.want.total}人`)));
   const details = h('details', {class: 'entries'},
@@ -841,7 +850,7 @@ function renderControls() {
 
 const ROLE_HINT = {
   helper: '',
-  producer: '生産者の視点：受け入れを選べます',
+  producer: '',
 };
 
 /* ------------------------------------------------------------------
@@ -854,10 +863,16 @@ function journeyFarm() {
   return mine ? mine.farm : (farms[0] || '');
 }
 function stepTitle(n, text) { return h('h2', {}, h('span', {class: 'step-no'}, String(n)), text); }
+const ACCEPT_LABEL = {'相談中': '受け入れ：未決定（相談中）', '受け入れ合意': '受け入れ合意', '延期': '受け入れ：延期', '見送り': '受け入れ：見送り'};
 function acceptBadge(a) {
   if (!a) return h('span', {class: 'pending'}, 'この日の予定なし');
-  return a.producer === '受け入れ合意' ? h('span', {class: 'badge', style: 'color:var(--ok)'}, '受け入れ合意')
-    : h('span', {class: 'pending'}, `受け入れ：${a.producer}`);
+  return a.producer === '受け入れ合意' ? h('span', {class: 'badge', style: 'color:var(--ok)', 'data-accept-badge': a.producer}, '受け入れ合意')
+    : h('span', {class: 'pending', 'data-accept-badge': a.producer}, ACCEPT_LABEL[a.producer]);
+}
+const RECHECK = '移動の記録は自動では取り消されません。関係者どうしで再確認が必要です（このデモは通知しません）。';
+function recruitLine(a) {
+  if (!a.wanted) return null;
+  return h('span', {class: 'recruit', 'data-recruit': 'true'}, `募集 ${a.wanted}人`, a.local ? '（生産者の画面で入力・この画面内の反映）' : '');
 }
 
 function renderJourney() {
@@ -877,7 +892,8 @@ function renderJourney() {
     const rel = RELATIONS.find(r => r.group === PERSONA.group && r.farm === f);
     return h('button', {type: 'button', class: 'farm-card', 'aria-pressed': String(f === fid), 'data-journey-farm': f, onclick: () => selectFarm(f)},
       h('span', {class: 'fname'}, FARMS[f].name),
-      h('span', {class: 'call'}, `「${a.call}」`),
+      h('span', {class: 'call', 'data-call': f}, `「${a.call}」`),
+      recruitLine(a),
       h('span', {}, acceptBadge(a), '　', h('small', {}, rel ? `あなたのグループ：${REL_STATUS[rel.status].label}` : 'あなたのグループ：まだ関係なし')));
   })));
 
@@ -920,32 +936,99 @@ function renderJourney() {
   const agreed = mine.filter(x => x.riders.some(r => r.person === PERSONA.person && r.status === '合意済み')).length;
   box.append(stepTitle(4, '当日まで'));
   box.append(h('div', {class: 'status-lines', 'data-journey-status': fid},
-    h('div', {}, h('strong', {}, '農園の受け入れ：'), a ? a.producer : '予定なし', ' ', a && a.producer !== '受け入れ合意' ? h('span', {class: 'pending'}, '未決定') : null),
+    h('div', {}, h('strong', {}, '農園の受け入れ：'), acceptBadge(a)),
+    a && (a.producer === '延期' || a.producer === '見送り') ? h('p', {class: 'warn', 'data-recheck': 'true'}, RECHECK) : null,
     h('div', {}, h('strong', {}, '移動の合意：'), mine.length ? `${agreed} / ${mine.length} 便を記録（あなたの側の記録）` : 'なし'),
     h('small', {class: 'muted'}, '受け入れと移動の合意は別々です。延期になっても自動の通知・再調整はありません。')));
 }
 
-function renderProducerHome(box) {
-  const dayAccept = accept[view.day] || {};
-  const farms = Object.keys(dayAccept);
-  const segs = computeSegments();
-  box.append(stepTitle(1, `${dayLabel(view.day)}の受け入れ`));
-  if (!farms.length) { box.append(h('p', {class: 'muted'}, 'この日の活動予定はありません')); return; }
-  for (const f of farms) {
-    const a = dayAccept[f];
-    const outs = segs.filter(x => x.farm === f && x.leg === 'out');
-    box.append(h('div', {class: 'accept-item', 'data-producer-home': f},
-      h('h3', {}, FARMS[f].name),
-      h('p', {class: 'call'}, `たより：「${a.call}」`),
-      h('div', {}, h('strong', {}, '来たい人（行きの相乗り・便ごと）')),
-      outs.length ? h('ul', {}, outs.map(x => h('li', {'data-producer-seg': x.key}, `${SLOT[x.slot]}発：乗りたい ${x.want.total}人・空席 ${x.seatsTotal}（${x.verdict}）`)))
-        : h('p', {class: 'muted'}, '相乗りの申し込みはありません'),
-      h('div', {}, h('strong', {}, '参加の選択：'), Object.entries(a.groups).map(([g, st]) => `${groupName(g)}「${st}」`).join('／')),
-      h('div', {class: 'choice-row'},
-        h('span', {class: 'label'}, '受け入れ：', h('br'), h('strong', {'data-producer-home-state': f}, a.producer)),
-        PRODUCER_CHOICES.map(opt => h('button', {type: 'button', 'aria-pressed': String(a.producer === opt), 'data-home-choice': opt,
-          onclick: () => { a.producer = opt; renderAll(); say(`${FARMS[f].name}：受け入れを「${opt}」にしました（画面内のみ・通知なし）`); }}, opt)))));
+function arrivalRows(fid) {
+  // 相乗りの申し込みから分かる範囲だけ：参加予定者（仮名ID）ごとの到着便・出発便
+  const segs = computeSegments().filter(x => x.farm === fid);
+  const people = new Map();
+  for (const seg of segs) for (const r of seg.riders) {
+    if (seg.riderDup.has(r.id)) continue;
+    const row = people.get(r.person) || {person: r.person};
+    row[seg.leg] = {slot: SLOT[seg.slot], status: r.status, at: r.at};
+    people.set(r.person, row);
   }
+  return [...people.values()].sort((a, b) => a.person.localeCompare(b.person));
+}
+function arrivalState(row) {
+  const changed = ['out', 'ret'].map(k => row[k]).filter(x => x && (x.status === '延期' || x.status === '見送り'));
+  if (changed.length) return `変更あり（${changed.map(x => x.status).join('・')}）`;
+  if (!row.out) return '行きが未連絡';
+  if (!row.ret) return '帰りが未連絡';
+  return '連絡あり';
+}
+
+function renderProducerHome(box) {
+  const fid = view.producerFarm;
+  const day = DAYS.find(d => d.id === view.day);
+  // 操作中の農園
+  box.append(h('div', {class: 'acting'},
+    h('label', {for: 'producerFarm'}, 'いま操作している農園（デモの切替・認証ではありません）'),
+    (() => { const sel = h('select', {id: 'producerFarm', onchange: e => { view.producerFarm = e.target.value; renderAll(); }},
+      Object.keys(FARMS).map(f => h('option', {value: f, selected: f === fid ? true : null}, FARMS[f].name))); return sel; })(),
+    h('p', {class: 'acting-now', 'data-acting': fid}, `${FARMS[fid].name}として操作中`)));
+
+  // ① 来てほしいを伝える
+  box.append(stepTitle(1, '「来てほしい」を伝える'));
+  const cur = (accept[view.day] || {})[fid];
+  const daySel = h('select', {id: 'recruitDay'}, DAYS.map(d => h('option', {value: d.id, selected: d.id === view.day ? true : null}, d.label)));
+  const work = h('input', {id: 'recruitWork', type: 'text', maxlength: '60', required: true, value: cur ? cur.call : '', autocomplete: 'off'});
+  const count = h('input', {id: 'recruitCount', type: 'number', min: '1', max: '30', step: '1', required: true, value: cur && cur.wanted ? String(cur.wanted) : '3'});
+  box.append(h('form', {class: 'recruit-form', 'data-recruit-form': fid, onsubmit: e => {
+      e.preventDefault();
+      const n = Number(count.value), text = work.value.trim();
+      if (!text || !Number.isInteger(n) || n < 1 || n > 30) { say('作業の内容と、1〜30の募集人数を入れてください'); return; }
+      const d = daySel.value;
+      accept[d] = accept[d] || {};
+      accept[d][fid] = Object.assign(accept[d][fid] || {producer: '相談中', note: '', groups: {}}, {call: text, wanted: n, local: true});
+      view.day = d;
+      renderAll();
+      say('援農者の画面に反映しました（この画面の中だけ。通知・保存・送信はしていません）');
+    }},
+    h('label', {for: 'recruitDay'}, '活動日'), daySel,
+    h('label', {for: 'recruitWork'}, '一緒にやりたい作業'), work,
+    h('label', {for: 'recruitCount'}, '募集人数'), count,
+    h('p', {}, h('button', {class: 'primary', type: 'submit'}, '援農者の画面に反映する')),
+    h('small', {class: 'muted'}, 'この画面の中で援農者の画面に反映するだけです。相手への通知・公開・保存はしません。')));
+
+  const a = (accept[view.day] || {})[fid];
+  if (!a) { box.append(h('p', {class: 'muted'}, `${day.label}、${FARMS[fid].name}の予定はまだありません`)); return; }
+
+  // ② 受け入れ
+  box.append(stepTitle(2, `${day.label}の受け入れ`));
+  box.append(h('div', {class: 'accept-item', 'data-producer-home': fid},
+    h('p', {class: 'call'}, `援農者に見えている内容：「${a.call}」`, a.wanted ? `／募集 ${a.wanted}人` : ''),
+    h('div', {class: 'choice-row'},
+      h('span', {class: 'label'}, '受け入れ：', h('br'), h('strong', {'data-producer-home-state': fid}, a.producer)),
+      PRODUCER_CHOICES.map(opt => h('button', {type: 'button', 'aria-pressed': String(a.producer === opt), 'data-home-choice': opt,
+        onclick: () => { a.producer = opt; renderAll(); say(`受け入れを「${opt}」にしました（画面内のみ・通知なし）`); }}, opt))),
+    (a.producer === '延期' || a.producer === '見送り') ? h('p', {class: 'warn', 'data-recheck': 'true'}, RECHECK) : null,
+    h('div', {}, h('strong', {}, '参加の選択（グループ）：'), Object.entries(a.groups).map(([g, st]) => `${groupName(g)}「${st}」`).join('／') || 'まだありません')));
+
+  // ③ 相乗り（行き・帰り）
+  const segs = computeSegments().filter(x => x.farm === fid);
+  box.append(stepTitle(3, '相乗りの希望（行き・帰り、便ごと）'));
+  box.append(h('p', {class: 'muted'}, '相乗りを希望する人数です。畑に来る人全員ではありません。'));
+  for (const [leg, label] of [['out', '行き'], ['ret', '帰り']]) {
+    const list = segs.filter(x => x.leg === leg);
+    box.append(h('div', {'data-producer-leg': leg}, h('strong', {}, label), list.length
+      ? h('ul', {}, list.map(x => h('li', {'data-producer-seg': x.key}, `${SLOT[x.slot]}発：乗りたい ${x.want.total}人・空席 ${x.seatsTotal}（${x.verdict}）`)))
+      : h('p', {class: 'muted'}, 'なし')));
+  }
+
+  // ④ 来る時間・帰る時間
+  box.append(stepTitle(4, '来る時間・帰る時間'));
+  box.append(h('p', {class: 'muted'}, `連絡の目安：${day.notice}（活動日の2日前）まで。遅れた連絡も自動では断りません。相乗りの申し込みから分かる範囲だけを表示しています。相乗りを使わない人の時間は、このデモでは分かりません。`));
+  const rows = arrivalRows(fid);
+  box.append(rows.length ? h('table', {class: 'orders arrivals', 'data-arrivals': fid},
+    h('thead', {}, h('tr', {}, h('th', {}, '参加予定（仮名ID）'), h('th', {}, '来る（行きの便）'), h('th', {}, '帰る（帰りの便）'), h('th', {}, '状態'))),
+    h('tbody', {}, rows.map(r => h('tr', {'data-arrival': r.person},
+      h('td', {}, r.person), h('td', {}, r.out ? r.out.slot : '未連絡'), h('td', {}, r.ret ? r.ret.slot : '未連絡'), h('td', {}, arrivalState(r))))))
+    : h('p', {class: 'muted'}, '相乗りの申し込みはありません'));
 }
 
 function renderAll() {
@@ -967,7 +1050,7 @@ $('legSelect').addEventListener('change', e => { view.leg = e.target.value; rend
 $('roleSelect').addEventListener('change', e => { view.role = e.target.value; renderAll(); say(`${e.target.selectedOptions[0].textContent}の視点に切り替えました（認証ではありません）`); });
 $('reset').addEventListener('click', () => {
   resetData();
-  Object.assign(view, {role: 'helper', day: 'd1', farm: '', leg: 'both', edge: ''});
+  Object.assign(view, {role: 'helper', day: 'd1', farm: '', leg: 'both', edge: '', producerFarm: 'f1'});
   openSegments.clear();
   renderAll();
   say('最初の状態に戻しました');

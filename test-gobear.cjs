@@ -52,7 +52,11 @@ const HTML = fs.readFileSync(__dirname + '/go-bear.html', 'utf8');
   await test('架空データの明記と、個人情報の入力欄がない', async () => {
     const page = await fresh();
     assert((await page.locator('#fictionNotice').innerText()).includes('すべて架空のデータです'));
-    assert.equal(await page.locator('input, textarea').count(), 0);
+    // 援農者の画面には入力欄がない。生産者の入力欄も作業・人数だけで、氏名・電話・住所・メールは集めない
+    assert.equal(await page.locator('#journey input, #journey textarea').count(), 0);
+    await page.selectOption('#roleSelect', 'producer');
+    assert.deepEqual(await page.locator('input, textarea').evaluateAll(els => els.map(e => e.id)), ['recruitWork', 'recruitCount']);
+    assert.equal(await page.locator('input[type="tel"], input[type="email"], input[autocomplete="name"], input[autocomplete="street-address"]').count(), 0);
     await page.close();
   });
 
@@ -243,7 +247,7 @@ const HTML = fs.readFileSync(__dirname + '/go-bear.html', 'utf8');
     assert((await page.locator('#rideSummary').innerText()).includes('あなたの便：2件'));
     // 生産者の視点
     await page.selectOption('#roleSelect', 'producer');
-    assert((await page.locator('#roleHint').innerText()).includes('生産者の視点'));
+    assert.equal(await page.locator('[data-acting]').count(), 1);
     assert((await page.locator('[data-producer-farm]').count()) > 0);
     assert.equal(await page.locator('[data-participant-farm]').count(), 0);
     assert.equal(await page.locator('[data-mine-seg]').count(), 0);
@@ -305,6 +309,49 @@ const HTML = fs.readFileSync(__dirname + '/go-bear.html', 'utf8');
     // 別の畑：P-01 の便がない
     await page.locator('[data-journey-farm="f2"]').click();
     assert.equal(await page.locator('[data-no-mine]').count(), 1);
+    await page.close();
+  });
+
+  await test('生産者の入力→援農者の画面に反映→相乗りの相談→受け入れの変更（すべて画面内）', async () => {
+    const page = await fresh({width: 1200, height: 1000}, {openDetails: false});
+    await page.selectOption('#roleSelect', 'producer');
+    // 操作中の農園を切り替えられ、表示される
+    await page.selectOption('#producerFarm', 'f5');
+    assert.equal(await page.locator('[data-acting]').innerText(), 'そよかぜ畑として操作中');
+    // そよかぜ畑は 11/21 の予定がない → 入力して反映
+    await page.fill('#recruitWork', '冬の畑の草取り。一緒にやりませんか');
+    await page.fill('#recruitCount', '3');
+    await page.click('[data-recruit-form="f5"] button[type="submit"]');
+    assert((await page.locator('#toast').innerText()).includes('通知・保存・送信はしていません'));
+    await page.selectOption('#roleSelect', 'helper');
+    const card = page.locator('[data-journey-farm="f5"]');
+    assert((await card.innerText()).includes('冬の畑の草取り'));
+    assert((await card.locator('[data-recruit]').innerText()).includes('募集 3人（生産者の画面で入力・この画面内の反映）'));
+    // 援農者：そよかぜ畑には P-01 の便がない（新しい申し込みはできない）
+    await card.click();
+    assert.equal(await page.locator('[data-no-mine]').count(), 1);
+    // こもれび農園で相乗りを相談
+    await page.locator('[data-journey-farm="f1"]').click();
+    await page.locator('[data-my-seg="d1|out|里山駅|f1|a"]').getByRole('button', {name: '相談する'}).click();
+    // 生産者：こもれび農園を延期 → 行き・帰り・到着予定・再確認の表示
+    await page.selectOption('#roleSelect', 'producer');
+    await page.selectOption('#producerFarm', 'f1');
+    assert.equal(await page.locator('[data-producer-leg="ret"] li').count(), 1);
+    assert((await page.locator('[data-arrival="P-01"]').innerText()).includes('9:00〜9:30'));
+    assert((await page.locator('[data-arrival="P-03"]').innerText()).includes('帰りが未連絡'));
+    await page.locator('[data-producer-home="f1"] [data-home-choice="延期"]').click();
+    assert.equal(await page.locator('[data-producer-home="f1"] [data-recheck]').count(), 1);
+    // 援農者：受け入れは「延期」と表示（「未決定」ではない）、相談中の記録は残る
+    await page.selectOption('#roleSelect', 'helper');
+    await page.locator('[data-journey-farm="f1"]').click();
+    assert.equal(await page.locator('[data-journey-farm="f1"] [data-accept-badge]').innerText(), '受け入れ：延期');
+    assert.equal(await page.locator('[data-journey-status="f1"] [data-recheck]').count(), 1);
+    assert.equal(await page.locator('[data-my-seg="d1|out|里山駅|f1|a"] [data-rider-status]').innerText(), '相談中');
+    // 見送りは「見送り」と表示
+    await page.selectOption('#roleSelect', 'producer');
+    await page.locator('[data-producer-home="f1"] [data-home-choice="見送り"]').click();
+    await page.selectOption('#roleSelect', 'helper');
+    assert.equal(await page.locator('[data-journey-farm="f1"] [data-accept-badge]').innerText(), '受け入れ：見送り');
     await page.close();
   });
 
