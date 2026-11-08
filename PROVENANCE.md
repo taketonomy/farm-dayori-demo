@@ -20,11 +20,12 @@ Go Bear to Farm! の作業では、`farm-demo.html`、仕様書、既存テス�
 | `go-bear.html` | Claude Code | 2026-11-08（JST 15時台） | 援農グループと生産者グループの関係図、活動日ごとの農園の受け入れ、駅・バス停から畑までの相乗り需給 |
 | `test-gobear.cjs` | Claude Code | 2026-11-08 | 上記の確認テスト16項目（Playwright） |
 | `PROVENANCE.md` | Claude Code | 2026-11-08 | この制作記録 |
+| `scripts/make-local.cjs`・`scripts/check-public.cjs` | Claude Code | 2026-11-08 | 開発用の名称差し替えと、公開ファイルに差し替え後の名称がないことの確認 |
 | `VERIFICATION.md` | Claude Code | 2026-11-08（JST 15時台） | 実画面での通し確認・テスト結果・未確認事項の記録 |
 | `package.json`（`test` スクリプトに1項目追加） | Claude Code | 2026-11-08 | `node test-gobear.cjs` を追加 |
 | `README.md`（「Go Bear to Farm!（追加部分）」節） | Claude Code | 2026-11-08 | 追加部分の説明。既存の文章は変更していません |
 
-同じ日の夕方、デモの評価で「認知負荷が高い」という指摘を受け、援農者／生産者の視点の切替、援農者の視点を1人の利用者（P-01）に限定、画面上の説明文の削減を行いました（Claude Code）。
+同じ日の夕方、デモの評価で「認知負荷が高い」という指摘を受け、援農者／生産者の視点の切替、援農者の視点を1人の利用者（P-01）に限定、画面上の説明文の削減を行いました。続けて、集合場所を1か所にまとめ、駅から畑への概念図を追加し、合意が利用者側の記録であることなどを画面のルール欄に明記しました（Claude Code）。
 
 同じ日の構想整理・既存リポジトリの確認・最小スコープの提案も Claude Code で行いました。
 

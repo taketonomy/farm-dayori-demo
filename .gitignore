@@ -2,3 +2,7 @@ node_modules/
 *-results.json
 *-preview.png
 v07-mobile-check.png
+
+# 開発用の名称対応表と、その生成物（公開しない）
+*.local.json
+*.local.html

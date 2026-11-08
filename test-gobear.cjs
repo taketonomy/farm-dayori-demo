@@ -42,9 +42,9 @@ const HTML = fs.readFileSync(__dirname + '/go-bear.html', 'utf8');
   const K = {
     outKomorebi: 'd1|out|里山駅|f1|a',
     outKomorebiLate: 'd1|out|里山駅|f1|b',
-    outMizube: 'd1|out|川辺バス停|f2|a',
+    outMizube: 'd1|out|里山駅|f2|a',
     retKomorebi: 'd1|ret|里山駅|f1|c',
-    retMizube: 'd1|ret|川辺バス停|f2|c',
+    retMizube: 'd1|ret|里山駅|f2|c',
   };
 
   await test('架空データの明記と、個人情報の入力欄がない', async () => {
@@ -117,11 +117,11 @@ const HTML = fs.readFileSync(__dirname + '/go-bear.html', 'utf8');
 
   await test('関係図の線を選ぶと詳細が出て、その農園の需給に絞り込まれる', async () => {
     const page = await fresh();
-    await page.click('g.edge[data-edge="e3"]');
+    await page.click('.edge-label[data-edge="e3"]');
     const detail = await page.locator('#detail').innerText();
     for (const t of ['週末はたけ部', 'みずべ農園', '活動内容', '直近の交流', '次に相談したいこと', '復路の相乗りの集合場所'])
       assert(detail.includes(t), `詳細に「${t}」`);
-    assert(detail.includes('こもれび農園・ひだまり畑との関係ではありません'));
+    assert(detail.includes('こもれび農園・そよかぜ畑との関係ではありません'));
     const farms = await page.locator('[data-seg]').evaluateAll(els => [...new Set(els.map(e => e.dataset.farm))]);
     assert.deepEqual(farms, ['f2']);
     assert.equal(await page.inputValue('#farmSelect'), 'f2');
@@ -154,15 +154,15 @@ const HTML = fs.readFileSync(__dirname + '/go-bear.html', 'utf8');
     const page = await fresh();
     await page.selectOption('#daySelect', 'd2');
     assert.equal(await page.locator('[data-seg^="d1|"]').count(), 0);
-    const s = await seg(page, 'd2|out|里山駅|f3|b');
+    const s = await seg(page, 'd2|out|里山駅|f1|b');
     assert.deepEqual([s.want, s.seats], [3, 3]);
     assert(s.verdict.includes('数量上は一致・未合意'));
     assert(s.ride.includes('1人'));
     // 見送りの人は数えない
-    const r = await seg(page, 'd2|ret|川辺バス停|f2|c');
+    const r = await seg(page, 'd2|ret|里山駅|f2|c');
     assert.deepEqual([r.want, r.seats, r.verdict], [0, 1, '1席余裕']);
-    assert.equal(await page.locator('[data-accept-farm="f3"]').count(), 1);
-    assert.equal(await page.locator('[data-accept-farm="f1"]').count(), 0);
+    assert.equal(await page.locator('[data-accept-farm="f1"]').count(), 1);
+    assert.equal(await page.locator('[data-accept-farm="f5"]').count(), 0);
     await page.close();
   });
 
@@ -179,7 +179,7 @@ const HTML = fs.readFileSync(__dirname + '/go-bear.html', 'utf8');
     let s = await seg(page, K.outKomorebi);
     assert(s.ride.includes('1人 ／ 乗りたい 5人'));
     assert.equal(s.verdict, '2席不足');
-    assert((await card.locator('[data-rider="r01"] [data-rider-status]').innerText()).includes('移動合意済み（D-01 の車）'));
+    assert((await card.locator('[data-rider="r01"] [data-rider-status]').innerText()).includes('移動合意を記録（P-01 側の記録・D-01 の車）'));
     await card.locator('[data-rider="r01"]').getByRole('button', {name: '合意を取り消して相談中へ'}).click();
     assert.equal(await card.locator('[data-rider="r01"] [data-rider-status]').innerText(), '相談中');
     // 自分の申し込みがない便は表示だけ。数が一致していても未合意のまま
@@ -260,6 +260,23 @@ const HTML = fs.readFileSync(__dirname + '/go-bear.html', 'utf8');
     await page.selectOption('#roleSelect', 'producer');
     await page.click('#reset');
     assert.equal(await page.inputValue('#roleSelect'), 'helper');
+    await page.close();
+  });
+
+  await test('概念図：駅と農園を仮の配置で示し、未確認であることを明記し、農園で絞り込める', async () => {
+    const page = await fresh();
+    assert((await page.locator('[data-geo-note]').textContent()).includes('未確認'));
+    assert.equal(await page.locator('[data-geo-hub]').textContent(), '里山駅');
+    assert.equal(await page.locator('[data-geo-route]').count(), 2);
+    assert.equal(await page.locator('[data-geo-route="f5"]').count(), 0);
+    assert((await page.locator('[data-geo-label="f1"]').textContent()).includes('不足のある便'));
+    assert.equal(await page.locator('[data-geo-mine]').count(), 1);
+    await page.click('g.geo-farm[data-geo-farm="f2"]');
+    const farms = await page.locator('[data-seg]').evaluateAll(els => [...new Set(els.map(e => e.dataset.farm))]);
+    assert.deepEqual(farms, ['f2']);
+    assert.equal(await page.inputValue('#farmSelect'), 'f2');
+    await page.selectOption('#roleSelect', 'producer');
+    assert.equal(await page.locator('[data-geo-mine]').count(), 0);
     await page.close();
   });
 
