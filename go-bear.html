@@ -1085,23 +1085,21 @@ function renderProducerHome(box) {
     h('p', {class: 'acting-now', 'data-acting': fid}, `${FARMS[fid].name}として操作中`)));
 
   // ① 来てほしいを伝える
-  box.append(stepTitle(1, '「来てほしい」を伝える'));
+  box.append(stepTitle(1, `${dayLabel(view.day)}に「来てほしい」を伝える`));
   const cur = (accept[view.day] || {})[fid];
-  const daySel = h('select', {id: 'recruitDay'}, DAYS.map(d => h('option', {value: d.id, selected: d.id === view.day ? true : null}, d.label)));
   const work = h('input', {id: 'recruitWork', type: 'text', maxlength: '60', required: true, value: cur ? cur.call : '', autocomplete: 'off'});
   const count = h('input', {id: 'recruitCount', type: 'number', min: '1', max: '30', step: '1', required: true, value: cur && cur.wanted ? String(cur.wanted) : '3'});
   box.append(h('form', {class: 'recruit-form', 'data-recruit-form': fid, onsubmit: e => {
       e.preventDefault();
       const n = Number(count.value), text = work.value.trim();
       if (!text || !Number.isInteger(n) || n < 1 || n > 30) { say('作業の内容と、1〜30の募集人数を入れてください'); return; }
-      const d = daySel.value;
+      const d = view.day;
       accept[d] = accept[d] || {};
       accept[d][fid] = Object.assign(accept[d][fid] || {producer: '相談中', note: '', groups: {}}, {call: text, wanted: n, local: true});
       view.day = d;
       renderAll();
       say('援農者の画面に反映しました（この画面の中だけ。通知・保存・送信はしていません）');
     }},
-    h('label', {for: 'recruitDay'}, '活動日'), daySel,
     h('label', {for: 'recruitWork'}, '一緒にやりたい作業'), work,
     h('label', {for: 'recruitCount'}, '募集人数'), count,
     h('p', {}, h('button', {class: 'primary', type: 'submit'}, '援農者の画面に反映する')),
